@@ -14,6 +14,7 @@ export interface Server {
   kernel_version: string | null;
 
   reboot_required: boolean;
+  cleanup_available: boolean | null;
 
   connection_status: string;
   updates_available: number;
@@ -78,6 +79,7 @@ export interface UpdateResult {
   updates_available: number;
   held_updates_available?: number;
   reboot_required: boolean;
+  cleanup_available?: boolean;
   updates: PackageUpdate[];
   held_updates?: PackageUpdate[];
 }

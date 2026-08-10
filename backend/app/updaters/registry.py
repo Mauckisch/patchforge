@@ -1,9 +1,11 @@
 from app.updaters.apt import AptUpdater
+from app.updaters.dnf import DnfUpdater
 from app.updaters.base import BaseUpdater, UpdaterError
 
 
 UPDATERS: dict[str, BaseUpdater] = {
     "apt": AptUpdater(),
+    "dnf": DnfUpdater(),
 }
 
 

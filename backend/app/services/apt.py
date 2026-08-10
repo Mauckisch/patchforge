@@ -571,6 +571,40 @@ def get_kernel_reboot_status(
     }
 
 
+def cleanup_available(
+    transport: paramiko.Transport,
+) -> bool:
+    status, stdout, stderr = _execute(
+        transport,
+        (
+            "LC_ALL=C "
+            "apt-get -s autoremove "
+            "-o Debug::NoLocking=1"
+        ),
+        timeout=120,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr
+            or stdout
+            or (
+                "Unable to determine "
+                "APT cleanup availability"
+            )
+        )
+
+    match = re.search(
+        r"(\d+) to remove",
+        stdout,
+    )
+
+    if match is None:
+        return False
+
+    return int(match.group(1)) > 0
+
+
 def cleanup(
     transport: paramiko.Transport,
     privilege_method: str,

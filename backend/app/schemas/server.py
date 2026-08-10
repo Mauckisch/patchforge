@@ -73,6 +73,7 @@ class ServerResponse(BaseModel):
     kernel_version: str | None
 
     reboot_required: bool
+    cleanup_available: bool | None
 
     connection_status: str
     updates_available: int

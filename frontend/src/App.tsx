@@ -344,7 +344,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.3.4
+              for Linux · v1.4.0
             </div>
           </div>
         </div>
@@ -399,7 +399,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.3.4
+            PatchForge v1.4.0
           </div>
         </header>
 
@@ -2506,6 +2506,8 @@ function UpdateModal({
           snapshot.updates_available,
         reboot_required:
           snapshot.reboot_required,
+        cleanup_available:
+          server.cleanup_available ?? undefined,
         updates:
           snapshot.updates
       });
@@ -2826,7 +2828,10 @@ function UpdateModal({
 
           <button
             className="button"
-            disabled={busy}
+            disabled={
+              busy ||
+              result?.cleanup_available === false
+            }
             onClick={async () => {
               if (!window.confirm(
                 `Run package cleanup on ${server.name}?`
@@ -2870,6 +2875,20 @@ function UpdateModal({
           >
             Cleanup
           </button>
+
+          {result?.cleanup_available !== undefined && (
+            <span
+              className={
+                result.cleanup_available
+                  ? "cleanup-status available"
+                  : "cleanup-status clean"
+              }
+            >
+              {result.cleanup_available
+                ? "Cleanup available"
+                : "Nothing to clean"}
+            </span>
+          )}
 
           <div className="update-toolbar-spacer" />
 
@@ -3286,31 +3305,108 @@ function ServerPanel({
   const [serverSearch, setServerSearch] =
     useState("");
 
+  const [
+    packageManagerFilter,
+    setPackageManagerFilter
+  ] = useState("ALL");
+
+  const [
+    statusFilter,
+    setStatusFilter
+  ] = useState("ALL");
+
   const normalizedServerSearch =
     serverSearch.trim().toLowerCase();
 
-  const filteredServers =
-    normalizedServerSearch
-      ? servers.filter((server) => {
-          const searchableValues = [
-            server.name,
-            server.system_hostname,
-            server.host,
-            server.distribution,
+  const packageManagers = Array.from(
+    new Set(
+      servers
+        .map(
+          (server) =>
             server.package_manager
-          ];
+        )
+        .filter(
+          (manager): manager is string =>
+            Boolean(manager)
+        )
+    )
+  ).sort();
 
-          return searchableValues.some(
-            (value) =>
-              value?.toLowerCase().includes(
-                normalizedServerSearch
-              )
-          );
-        })
-      : servers;
+  const filteredServers = servers.filter(
+    (server) => {
+      const searchableValues = [
+        server.name,
+        server.system_hostname,
+        server.host,
+        server.distribution,
+        server.package_manager,
+        server.kernel_version
+      ];
+
+      const matchesSearch =
+        !normalizedServerSearch ||
+        searchableValues.some(
+          (value) =>
+            value?.toLowerCase().includes(
+              normalizedServerSearch
+            )
+        );
+
+      const matchesPackageManager =
+        packageManagerFilter === "ALL" ||
+        server.package_manager ===
+          packageManagerFilter;
+
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        server.connection_status ===
+          statusFilter;
+
+      return (
+        matchesSearch &&
+        matchesPackageManager &&
+        matchesStatus
+      );
+    }
+  );
+
+  function connectionStatusLabel(
+    status: string
+  ): string {
+    switch (status) {
+      case "ONLINE":
+        return "Online";
+
+      case "UNREACHABLE":
+        return "Offline";
+
+      case "AUTH_FAILED":
+        return "Authentication failed";
+
+      case "ERROR":
+        return "Error";
+
+      default:
+        return "Unknown";
+    }
+  }
+
+  function connectionStatusClass(
+    status: string
+  ): string {
+    if (status === "ONLINE") {
+      return "badge ok";
+    }
+
+    if (status === "UNKNOWN") {
+      return "badge neutral";
+    }
+
+    return "badge danger";
+  }
 
   return (
-    <section className="panel">
+    <section className="panel server-list-panel">
       <div className="panel-header">
         <h2 className="panel-title">
           Servers
@@ -3324,8 +3420,9 @@ function ServerPanel({
         </button>
       </div>
 
-        {servers.length > 0 && (
-          <div className="server-search">
+      {servers.length > 0 && (
+        <div className="server-list-toolbar">
+          <div className="server-list-search">
             <input
               type="search"
               placeholder="Search servers..."
@@ -3336,148 +3433,248 @@ function ServerPanel({
                 )
               }
             />
-
-            {serverSearch && (
-              <button
-                type="button"
-                className="button"
-                onClick={() =>
-                  setServerSearch("")
-                }
-              >
-                Clear
-              </button>
-            )}
           </div>
-        )}
+
+          <select
+            className="server-list-filter"
+            value={packageManagerFilter}
+            onChange={(event) =>
+              setPackageManagerFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="ALL">
+              All Package Managers
+            </option>
+
+            {packageManagers.map(
+              (manager) => (
+                <option
+                  key={manager}
+                  value={manager}
+                >
+                  {manager.toUpperCase()}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            className="server-list-filter"
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="ALL">
+              All Statuses
+            </option>
+            <option value="ONLINE">
+              Online
+            </option>
+            <option value="UNREACHABLE">
+              Offline
+            </option>
+            <option value="AUTH_FAILED">
+              Authentication failed
+            </option>
+            <option value="ERROR">
+              Error
+            </option>
+            <option value="UNKNOWN">
+              Unknown
+            </option>
+          </select>
+
+          {(serverSearch ||
+            packageManagerFilter !== "ALL" ||
+            statusFilter !== "ALL") && (
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setServerSearch("");
+                setPackageManagerFilter("ALL");
+                setStatusFilter("ALL");
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {servers.length === 0 ? (
         <div className="empty">
           No servers configured.
         </div>
-        ) : filteredServers.length === 0 ? (
-          <div className="empty">
-            No servers match your search.
-          </div>
-        ) : (
-          <div className="server-grid">
-          {filteredServers.map(
-            (server) => (
-              <div
-                className="server-card"
-                key={server.id}
-              >
-                <div className="server-top">
-                  <div>
-                    <div className="server-name">
-                      {server.name}
-                    </div>
-
-                    <div className="server-host">
-                      {server.host}
-                    </div>
-                  </div>
-
-                  <div className="server-status-badges">
-                    <span
-                      className={
-                        server.connection_status === "ONLINE"
-                          ? "badge ok"
-                          : server.connection_status === "UNKNOWN"
-                            ? "badge neutral"
-                            : "badge danger"
-                      }
-                    >
-                      {server.connection_status === "ONLINE"
-                        ? "Online"
-                        : server.connection_status === "UNREACHABLE"
-                          ? "Offline"
-                          : server.connection_status === "AUTH_FAILED"
-                            ? "Authentication failed"
-                            : server.connection_status === "ERROR"
-                              ? "Error"
-                              : "Unknown"}
-                    </span>
-
-                    {server.reboot_required && (
-                      <span className="badge warning">
-                        Reboot required
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="server-meta">
-                  <div className="server-meta-row">
-                    <span>Hostname</span>
-
-                    <span>
-                      {server.system_hostname ?? "Unknown"}
-                    </span>
-                  </div>
-
-                  <div className="server-meta-row">
-                    <span>Distribution</span>
-
-                    <span>
-                      {server.distribution ?? "Unknown"}
-                    </span>
-                  </div>
-
-                  <div className="server-meta-row">
-                    <span>Package Manager</span>
-
-                    <span>
-                      {server.package_manager?.toUpperCase()
-                        ?? "Unknown"}
-                    </span>
-                  </div>
-
-                  <div className="server-meta-row">
-                    <span>Kernel</span>
-
-                    <span>
-                      {server.kernel_version ?? "Unknown"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="server-actions">
-                  {server.connection_status === "ONLINE" && (
-                    <button
-                      className="button primary"
-                      onClick={() =>
-                        onUpdates(server)
-                      }
-                    >
-                      Updates
-                    </button>
-                  )}
-
-                  <div className="server-action-spacer" />
-
-                  <button
-                    className="button"
-                    onClick={() =>
-                      onEdit(server)
-                    }
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    className="button danger"
-                    onClick={() =>
-                      onDelete(server)
-                    }
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )
-          )}
+      ) : filteredServers.length === 0 ? (
+        <div className="empty">
+          No servers match your filters.
         </div>
+      ) : (
+        <>
+          <div className="server-table-wrap">
+            <table className="server-table">
+              <thead>
+                <tr>
+                  <th>Hostname</th>
+                  <th>Distribution</th>
+                  <th>Package Manager</th>
+                  <th>Status</th>
+                  <th>Kernel</th>
+                  <th>Updates</th>
+                  <th>Reboot</th>
+                  <th>Cleanup</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredServers.map(
+                  (server) => (
+                    <tr key={server.id}>
+                      <td>
+                        <div className="server-list-name">
+                          {server.name}
+                        </div>
+
+                        <div className="server-list-host">
+                          {server.host}
+                        </div>
+                      </td>
+
+                      <td className="server-list-distribution">
+                        {server.distribution ??
+                          "Unknown"}
+                      </td>
+
+                      <td>
+                        <span
+                          className={
+                            server.package_manager
+                              ? `package-manager-badge ${server.package_manager}`
+                              : "package-manager-badge unknown"
+                          }
+                        >
+                          {server.package_manager
+                            ?.toUpperCase() ??
+                            "Unknown"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={connectionStatusClass(
+                            server.connection_status
+                          )}
+                        >
+                          {connectionStatusLabel(
+                            server.connection_status
+                          )}
+                        </span>
+                      </td>
+
+                      <td className="server-list-kernel">
+                        {server.kernel_version ??
+                          "Unknown"}
+                      </td>
+
+                      <td>
+                        <div className="server-list-updates">
+                          <strong
+                            className={
+                              server.updates_available > 0
+                                ? "text-warning"
+                                : ""
+                            }
+                          >
+                            {server.updates_available}
+                          </strong>
+
+                          <span>
+                            {server.updates_available === 1
+                              ? "update"
+                              : "updates"}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        {server.reboot_required ? (
+                          <span className="badge warning">
+                            Required
+                          </span>
+                        ) : (
+                          <span className="badge ok">
+                            No
+                          </span>
+                        )}
+                      </td>
+
+                      <td>
+                        {server.cleanup_available === true ? (
+                          <span className="cleanup-status available">
+                            Available
+                          </span>
+                        ) : server.cleanup_available === false ? (
+                          <span className="cleanup-status clean">
+                            Clean
+                          </span>
+                        ) : (
+                          <span className="badge neutral">
+                            Unknown
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="server-list-actions">
+                          {server.connection_status ===
+                            "ONLINE" && (
+                            <button
+                              className="button primary"
+                              onClick={() =>
+                                onUpdates(server)
+                              }
+                            >
+                              Updates
+                            </button>
+                          )}
+
+                          <button
+                            className="button"
+                            onClick={() =>
+                              onEdit(server)
+                            }
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            className="button danger"
+                            onClick={() =>
+                              onDelete(server)
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="server-list-footer">
+            Showing {filteredServers.length} of{" "}
+            {servers.length} servers
+          </div>
+        </>
       )}
     </section>
   );

@@ -45,6 +45,13 @@ class BaseUpdater(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def cleanup_available(
+        self,
+        transport: paramiko.Transport,
+    ) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def cleanup(
         self,
         transport: paramiko.Transport,

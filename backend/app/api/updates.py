@@ -276,6 +276,12 @@ def check_updates(
 
                 held_updates = []
 
+            cleanup_available = (
+                updater.cleanup_available(
+                    transport
+                )
+            )
+
             reboot_status = (
                 updater.get_reboot_status(
                     transport
@@ -287,6 +293,10 @@ def check_updates(
 
         server.reboot_required = (
             reboot_status["reboot_required"]
+        )
+
+        server.cleanup_available = (
+            cleanup_available
         )
 
         locked_packages = (
@@ -348,6 +358,7 @@ def check_updates(
             "updates_available": len(unlocked_updates),
             "held_updates_available": len(held_updates),
             "reboot_required": server.reboot_required,
+            "cleanup_available": cleanup_available,
             "updates": updates,
             "held_updates": held_updates,
         }
@@ -736,6 +747,12 @@ def cleanup_server(
                 transport
             )
 
+            cleanup_available = (
+                updater.cleanup_available(
+                    transport
+                )
+            )
+
             reboot_status = updater.get_reboot_status(
                 transport
             )
@@ -745,6 +762,10 @@ def cleanup_server(
 
         server.reboot_required = (
             reboot_status["reboot_required"]
+        )
+
+        server.cleanup_available = (
+            cleanup_available
         )
 
         db.commit()
@@ -765,6 +786,7 @@ def cleanup_server(
             "server": server.name,
             "system_hostname": server.system_hostname,
             "cleanup": result,
+            "cleanup_available": server.cleanup_available,
             "remaining_updates": len(remaining_updates),
             "reboot_required": server.reboot_required,
         }

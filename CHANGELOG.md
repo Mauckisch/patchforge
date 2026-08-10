@@ -5,6 +5,36 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.4.0]
+
+### Added
+
+- Added DNF package-manager support.
+  - Added DNF metadata refresh.
+  - Added available-update detection with installed and available versions.
+  - Added installation of selected DNF updates.
+  - Added installation of all available DNF updates.
+  - Added DNF package cleanup support.
+  - Added DNF reboot-required detection using `dnf needs-restarting -r`.
+- Added persistent cleanup-availability detection for APT and DNF systems.
+- Added cleanup status to the server overview.
+- Added cleanup status to the update dialog.
+- Added package-manager and connection-status filters to the server overview.
+
+### Changed
+
+- Reworked the Servers page from card-based tiles to a compact table/list view.
+- Server overview now displays distribution, package manager, connection status, kernel, available updates, reboot status, cleanup status, and actions in one view.
+- Cleanup actions are disabled when PatchForge knows that no removable package leftovers are present.
+- Cleanup availability is refreshed during update checks and after cleanup operations.
+- Existing servers use an Unknown cleanup state until their package state has been checked.
+- Updated project documentation for APT and DNF support.
+
+### Fixed
+
+- Cleanup availability now persists across page reloads and reopened update dialogs.
+- DNF cleanup detection now uses DNF's unneeded-package query instead of localized human-readable output.
+
 ## [1.3.4]
 
 ### Added

@@ -72,6 +72,12 @@ class Server(Base):
         default=False,
     )
 
+    cleanup_available: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=None,
+    )
+
     connection_status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,

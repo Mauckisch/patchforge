@@ -10,7 +10,7 @@
 
 PatchForge for Linux is a focused web application for managing package updates on Linux servers.
 
-Current version: **1.3.4**
+Current version: **1.4.0**
 
 ## Features
 
@@ -18,11 +18,15 @@ Current version: **1.3.4**
 - Password-based SSH authentication
 - Encrypted credential storage
 - Automatic Linux distribution discovery
+- Automatic package manager detection
 - Automatic privilege escalation detection
 - Check for available package updates
+- Display available updates per server
 - Install selected updates
 - Install all available updates
+- Detect available package cleanup
 - Package cleanup
+- Persist cleanup availability per server
 - Detect whether a reboot is required
 - Display why a reboot is required
 - Persistent update history
@@ -51,13 +55,43 @@ A reboot may be detected and displayed, but it cannot be triggered from PatchFor
 
 ## Supported Package Managers
 
-### Version 1.2.0
+PatchForge automatically detects the package manager of a managed Linux server.
 
-- APT
+### APT
 
-The initial release focuses on Debian/Ubuntu-style APT systems.
+APT support is available for Debian-based systems.
 
-Support for additional package managers may be added in future releases.
+Supported operations:
+
+- Refresh package metadata
+- Check for available updates
+- Detect held packages
+- Install selected updates
+- Install all available updates
+- Detect removable package leftovers
+- Package cleanup using APT autoremove/autoclean
+- Detect whether a reboot is required
+
+APT support has been tested with Debian-based systems, including Debian and Proxmox VE hosts.
+
+### DNF
+
+DNF support was introduced with **PatchForge 1.4.0**.
+
+Supported operations:
+
+- Refresh package metadata
+- Check for available updates
+- Install selected updates
+- Install all available updates
+- Detect unneeded packages
+- Package cleanup using DNF
+- Detect whether a reboot is required
+- Detect running and installed kernel state
+
+DNF support has been tested with **Oracle Linux 10.2**.
+
+Other DNF-based distributions may work, but are not currently considered validated platforms.
 
 ## Docker Installation
 

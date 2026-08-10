@@ -64,6 +64,10 @@ def run_database_migrations() -> None:
                 "ADD COLUMN updates_available INTEGER "
                 "NOT NULL DEFAULT 0",
 
+            "cleanup_available":
+                "ALTER TABLE servers "
+                "ADD COLUMN cleanup_available BOOLEAN",
+
             "last_seen_at":
                 "ALTER TABLE servers "
                 "ADD COLUMN last_seen_at DATETIME",

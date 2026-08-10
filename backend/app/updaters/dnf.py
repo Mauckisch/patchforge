@@ -1,14 +1,14 @@
 import paramiko
 
-from app.services import apt
+from app.services import dnf
 from app.updaters.base import (
     BaseUpdater,
     UpdaterError,
 )
 
 
-class AptUpdater(BaseUpdater):
-    name = "apt"
+class DnfUpdater(BaseUpdater):
+    name = "dnf"
 
     def refresh_package_index(
         self,
@@ -17,13 +17,13 @@ class AptUpdater(BaseUpdater):
         privilege_password: str | None,
     ) -> None:
         try:
-            apt.refresh_package_index(
+            dnf.refresh_package_index(
                 transport=transport,
                 privilege_method=privilege_method,
                 privilege_password=privilege_password,
             )
 
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
@@ -33,41 +33,11 @@ class AptUpdater(BaseUpdater):
         transport: paramiko.Transport,
     ) -> list[dict]:
         try:
-            updates, _, _ = (
-                apt.list_updates(
-                    transport
-                )
-            )
-
-            return updates
-
-        except apt.AptError as exc:
-            raise UpdaterError(
-                str(exc)
-            ) from exc
-
-    def list_update_state(
-        self,
-        transport: paramiko.Transport,
-    ) -> dict:
-        try:
-            (
-                updates,
-                held_updates,
-                raw_output,
-            ) = apt.list_updates(
+            return dnf.list_updates(
                 transport
             )
 
-            return {
-                "updates": updates,
-                "held_updates":
-                    held_updates,
-                "raw_output":
-                    raw_output,
-            }
-
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
@@ -79,13 +49,13 @@ class AptUpdater(BaseUpdater):
     ) -> list[str]:
         try:
             return (
-                apt.validate_requested_packages(
+                dnf.validate_requested_packages(
                     requested_packages,
                     available_updates,
                 )
             )
 
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
@@ -98,14 +68,14 @@ class AptUpdater(BaseUpdater):
         privilege_password: str | None,
     ) -> None:
         try:
-            apt.install_updates(
+            dnf.install_updates(
                 transport=transport,
                 packages=packages,
                 privilege_method=privilege_method,
                 privilege_password=privilege_password,
             )
 
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
@@ -115,11 +85,11 @@ class AptUpdater(BaseUpdater):
         transport: paramiko.Transport,
     ) -> bool:
         try:
-            return apt.cleanup_available(
+            return dnf.cleanup_available(
                 transport
             )
 
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
@@ -131,13 +101,13 @@ class AptUpdater(BaseUpdater):
         privilege_password: str | None,
     ) -> dict:
         try:
-            return apt.cleanup(
+            return dnf.cleanup(
                 transport=transport,
                 privilege_method=privilege_method,
                 privilege_password=privilege_password,
             )
 
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
@@ -147,13 +117,11 @@ class AptUpdater(BaseUpdater):
         transport: paramiko.Transport,
     ) -> dict:
         try:
-            return (
-                apt.get_kernel_reboot_status(
-                    transport
-                )
+            return dnf.get_reboot_status(
+                transport
             )
 
-        except apt.AptError as exc:
+        except dnf.DnfError as exc:
             raise UpdaterError(
                 str(exc)
             ) from exc
