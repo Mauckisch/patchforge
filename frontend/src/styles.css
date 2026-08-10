@@ -1379,3 +1379,242 @@ td {
   background: #202723;
   color: #8fa097;
 }
+
+
+/* ============================================================
+   Settings
+   ============================================================ */
+
+.settings-page {
+  display: grid;
+  gap: 20px;
+}
+
+.settings-page .panel {
+  margin-bottom: 0;
+}
+
+.settings-description {
+  margin: 7px 0 0;
+  color: #83958b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+
+/* ------------------------------------------------------------
+   Channel header / enable switch
+   ------------------------------------------------------------ */
+
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #dce6e0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #28c76f;
+}
+
+
+/* ------------------------------------------------------------
+   Forms
+   ------------------------------------------------------------ */
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.settings-form-grid label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.settings-form-grid label > span {
+  color: #9aaba1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-form-grid input,
+.settings-form-grid select,
+.settings-form-grid textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #2a3730;
+  border-radius: 9px;
+  background: #0d130f;
+  color: #f1f6f3;
+  padding: 10px 11px;
+  outline: none;
+  font: inherit;
+}
+
+.settings-form-grid input,
+.settings-form-grid select {
+  min-height: 41px;
+}
+
+.settings-form-grid textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.settings-form-grid input::placeholder,
+.settings-form-grid textarea::placeholder {
+  color: #617168;
+}
+
+.settings-form-grid input:focus,
+.settings-form-grid select:focus,
+.settings-form-grid textarea:focus {
+  border-color: #2cb969;
+  box-shadow:
+    0 0 0 3px rgba(44, 185, 105, 0.12);
+}
+
+.settings-form-grid select {
+  cursor: pointer;
+}
+
+
+/* General settings only need a comfortable single field width */
+
+.settings-page .panel:first-of-type
+.settings-form-grid {
+  grid-template-columns:
+    minmax(260px, 520px);
+}
+
+
+/* ------------------------------------------------------------
+   Secrets / channel actions
+   ------------------------------------------------------------ */
+
+.settings-secret-state {
+  display: flex;
+  align-items: center;
+}
+
+.settings-channel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-channel-actions .button {
+  min-width: 150px;
+}
+
+
+/* ------------------------------------------------------------
+   Event matrix
+   ------------------------------------------------------------ */
+
+.notification-event-table {
+  width: 100%;
+}
+
+.notification-event-table th:nth-child(2),
+.notification-event-table th:nth-child(3),
+.notification-event-table td:nth-child(2),
+.notification-event-table td:nth-child(3) {
+  width: 110px;
+  text-align: center;
+}
+
+.notification-event-table td {
+  vertical-align: middle;
+}
+
+.notification-event-table input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #28c76f;
+  cursor: pointer;
+}
+
+.notification-event-name {
+  color: #e9f1ec;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notification-event-key {
+  margin-top: 3px;
+  color: #6f8177;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+
+/* ------------------------------------------------------------
+   Save bar
+   ------------------------------------------------------------ */
+
+.settings-save-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 20px;
+}
+
+.settings-save-bar .button {
+  min-width: 150px;
+}
+
+
+/* ------------------------------------------------------------
+   Responsive
+   ------------------------------------------------------------ */
+
+@media (max-width: 850px) {
+  .settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-form-grid .form-full {
+    grid-column: auto;
+  }
+
+  .settings-page .panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .notification-event-table th:nth-child(2),
+  .notification-event-table th:nth-child(3),
+  .notification-event-table td:nth-child(2),
+  .notification-event-table td:nth-child(3) {
+    width: 80px;
+  }
+}
+
+@media (max-width: 600px) {
+  .settings-form-grid {
+    gap: 14px;
+  }
+
+  .settings-save-bar {
+    justify-content: stretch;
+  }
+
+  .settings-save-bar .button {
+    width: 100%;
+  }
+}

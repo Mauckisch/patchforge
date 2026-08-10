@@ -2,6 +2,9 @@ import type {
   CleanupResult,
   HistoryEntry,
   InstallResult,
+  NotificationSettings,
+  NotificationSettingsUpdate,
+  NotificationTestResult,
   RebootStatus,
   ScheduledTask,
   Server,
@@ -378,6 +381,142 @@ export function updateSettings(
       body: JSON.stringify({
         history_retention_days:
           historyRetentionDays
+      })
+    }
+  );
+}
+
+
+export function getNotificationSettings(
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings"
+  );
+}
+
+
+export function updateNotificationSettings(
+  payload: NotificationSettingsUpdate
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+
+export function testNotification(
+  payload: {
+    channel: "email" | "discord";
+
+    discord_webhook_url?: string | null;
+
+    smtp_host?: string | null;
+    smtp_port?: number | null;
+    smtp_security?: "none" | "starttls" | "tls" | null;
+    smtp_username?: string | null;
+    smtp_password?: string | null;
+    email_from?: string | null;
+    email_recipients?: string[] | null;
+  }
+): Promise<NotificationTestResult> {
+  return request<NotificationTestResult>(
+    "/api/notifications/test",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+
+export function deleteDiscordNotificationSettings(
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/discord",
+    {
+      method: "DELETE"
+    }
+  );
+}
+
+
+export function deleteEmailNotificationSettings(
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/email",
+    {
+      method: "DELETE"
+    }
+  );
+}
+
+
+export function saveDiscordNotificationSettings(
+  payload: {
+    discord_enabled: boolean;
+    discord_webhook_url?: string | null;
+  }
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/discord",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+
+export function saveEmailNotificationSettings(
+  payload: {
+    email_enabled: boolean;
+    smtp_host: string | null;
+    smtp_port: number;
+    smtp_security: "none" | "starttls" | "tls";
+    smtp_username: string | null;
+    smtp_password?: string | null;
+    email_from: string | null;
+    email_recipients: string[];
+  }
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/email",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+
+export function saveNotificationEventPreferences(
+  events: NotificationSettings["events"]
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/events",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        events
       })
     }
   );

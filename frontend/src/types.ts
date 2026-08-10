@@ -123,3 +123,50 @@ export interface RebootStatus {
   newer_kernel_installed: boolean;
   reasons: RebootReason[];
 }
+
+
+export interface NotificationEventPreference {
+  event_key: string;
+  email_enabled: boolean;
+  discord_enabled: boolean;
+}
+
+
+export interface NotificationSettings {
+  email_enabled: boolean;
+  smtp_host: string | null;
+  smtp_port: number;
+  smtp_security: "none" | "starttls" | "tls";
+  smtp_username: string | null;
+  smtp_password_configured: boolean;
+  email_from: string | null;
+  email_recipients: string[];
+
+  discord_enabled: boolean;
+  discord_webhook_configured: boolean;
+
+  events: NotificationEventPreference[];
+}
+
+
+export interface NotificationSettingsUpdate {
+  email_enabled: boolean;
+  smtp_host: string | null;
+  smtp_port: number;
+  smtp_security: "none" | "starttls" | "tls";
+  smtp_username: string | null;
+  smtp_password?: string | null;
+  email_from: string | null;
+  email_recipients: string[];
+
+  discord_enabled: boolean;
+  discord_webhook_url?: string | null;
+
+  events: NotificationEventPreference[];
+}
+
+
+export interface NotificationTestResult {
+  channel: "email" | "discord";
+  success: boolean;
+}

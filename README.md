@@ -10,7 +10,7 @@
 
 PatchForge for Linux is a focused web application for managing package updates on Linux servers.
 
-Current version: **1.4.1**
+Current version: **1.5.0**
 
 ## Features
 
@@ -33,6 +33,14 @@ Current version: **1.4.1**
 - Configurable history retention
 - Scheduled update tasks
 - Multi-server task targets
+- Central Settings page
+- Configurable default task timezone
+- Discord webhook notification configuration
+- SMTP email notification configuration
+- Encrypted storage of notification secrets
+- Test Discord and email delivery without saving temporary test values
+- Independent save and delete actions for notification channels
+- Per-event notification channel preferences
 - Dark web interface with green accent theme
 
 ## Security Scope
@@ -92,6 +100,48 @@ Supported operations:
 DNF support has been tested with **Oracle Linux 10.2**.
 
 Other DNF-based distributions may work, but are not currently considered validated platforms.
+
+## Notifications
+
+PatchForge includes configurable notification transports for Discord and email.
+
+Notification settings are managed from the **Settings** page in the web interface.
+
+### Discord
+
+Discord notifications use an incoming webhook.
+
+The Discord configuration supports:
+
+- Enable or disable the Discord notification channel
+- Secure storage of the webhook URL
+- Test messages using the current form values without automatically saving them
+- Explicit saving of the Discord configuration
+- Complete deletion of the stored Discord configuration
+
+### Email
+
+Email notifications use SMTP.
+
+The email configuration supports:
+
+- SMTP hostname and port
+- No encryption, STARTTLS, or direct TLS/SSL
+- Optional SMTP authentication
+- Configurable sender address
+- One or more recipients
+- Secure storage of the SMTP password
+- Test messages using the current form values without automatically saving them
+- Explicit saving of the email configuration
+- Complete deletion of the stored email configuration
+
+Stored SMTP passwords and Discord webhook URLs are encrypted using the PatchForge application master key.
+
+### Notification Events
+
+The Settings page contains per-event preferences for email and Discord channels, including server status, package updates, cleanup, reboot-required state, installations, and scheduled tasks.
+
+The event preferences define which notification channels should be used as event delivery is integrated into the corresponding PatchForge operations.
 
 ## Docker Installation
 

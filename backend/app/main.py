@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.credentials import router as credentials_router
 from app.api.discovery import router as discovery_router
 from app.api.history import router as history_router
+from app.api.notifications import router as notifications_router
 from app.api.privilege import router as privilege_router
 from app.api.servers import router as servers_router
 from app.api.settings import router as settings_router
@@ -26,6 +27,10 @@ from app.models.server import Server
 from app.models.server_update import ServerUpdate
 from app.models.server_update_lock import ServerUpdateLock
 from app.models.settings import AppSettings
+from app.models.notification import (
+    NotificationEventPreference,
+    NotificationSettings,
+)
 from app.models.task import ScheduledTask
 from app.models.task_target import ScheduledTaskTarget
 from app.services.scheduler import (
@@ -58,7 +63,7 @@ async def lifespan(
 
 app = FastAPI(
     title="PatchForge for Linux",
-    version="1.4.1",
+    version="1.5.0",
     lifespan=lifespan,
 )
 
@@ -68,6 +73,7 @@ app.include_router(discovery_router)
 app.include_router(privilege_router)
 app.include_router(updates_router)
 app.include_router(history_router)
+app.include_router(notifications_router)
 app.include_router(tasks_router)
 app.include_router(settings_router)
 app.include_router(status_router)
@@ -78,7 +84,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "PatchForge for Linux",
-        "version": "1.4.1",
+        "version": "1.5.0",
     }
 
 

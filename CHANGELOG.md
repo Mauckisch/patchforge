@@ -5,6 +5,55 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.5.0]
+
+### Added
+
+- Added a dedicated Settings page to the PatchForge web interface.
+- Added configurable Discord webhook notification support.
+- Added configurable SMTP email notification support.
+- Added support for SMTP connections using no encryption, STARTTLS, or direct TLS/SSL.
+- Added configurable email sender and recipient addresses.
+- Added encrypted storage for Discord webhook URLs and SMTP passwords.
+- Added independent Discord and email test delivery.
+- Added notification test requests that can use the current unsaved form values without persisting them.
+- Added independent save actions for Discord and email configuration.
+- Added explicit deletion of stored Discord notification configuration.
+- Added explicit deletion of stored email notification configuration, including the stored SMTP password.
+- Added configurable notification event preferences for:
+  - Server offline
+  - Server online
+  - SSH errors
+  - Available updates
+  - Successful installations
+  - Failed installations
+  - Available cleanup
+  - Successful cleanup
+  - Failed cleanup
+  - Reboot required
+  - Successful scheduled tasks
+  - Failed scheduled tasks
+- Added a configurable default task timezone to the Settings page.
+
+### Changed
+
+- Moved the default scheduled-task timezone setting from the Tasks page to the central Settings page.
+- Notification channel testing is now independent from persistent configuration.
+- Sending a Discord or email test no longer implicitly saves configuration changes.
+- Test delivery can use newly entered webhook or SMTP values without modifying the stored configuration.
+- Notification channel configuration, testing, and deletion are now separate explicit actions.
+- Notification event preferences are stored independently from channel configuration.
+- Reworked notification settings styling to match the existing PatchForge dark interface.
+
+### Security
+
+- Discord webhook URLs are stored encrypted rather than as plaintext configuration.
+- SMTP passwords are stored encrypted rather than as plaintext configuration.
+- Stored notification secrets are not returned to the frontend.
+- The frontend only receives whether a webhook or SMTP password is configured.
+- Deleting a notification configuration removes its stored encrypted secret instead of replacing it with a placeholder value.
+- Notification tests do not persist temporary credentials or webhook values.
+
 ## [1.4.1]
 
 ### Fixed

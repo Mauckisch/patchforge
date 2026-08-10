@@ -14,9 +14,12 @@ import {
   createTask,
   deleteServer,
   deleteTask,
+  deleteDiscordNotificationSettings,
+  deleteEmailNotificationSettings,
   discoverServer,
   getCredentialStatus,
   getHistory,
+  getNotificationSettings,
   getRebootStatus,
   getServers,
   getSettings,
@@ -30,6 +33,11 @@ import {
   unlockUpdatePackage,
   runTaskNow,
   setServerCredentials,
+  saveDiscordNotificationSettings,
+  saveEmailNotificationSettings,
+  saveNotificationEventPreferences,
+  testNotification,
+  updateNotificationSettings,
   updateServer,
   updateSettings,
   updateTask
@@ -38,6 +46,8 @@ import {
 import type {
   HistoryEntry,
   PackageUpdate,
+  NotificationEventPreference,
+  NotificationSettings,
   RebootStatus,
   ScheduledTask,
   Server,
@@ -49,7 +59,8 @@ type Page =
   | "dashboard"
   | "servers"
   | "tasks"
-  | "history";
+  | "history"
+  | "settings";
 
 
 const GITHUB_URL =
@@ -320,6 +331,9 @@ function App() {
       case "history":
         return "History";
 
+      case "settings":
+        return "Settings";
+
       default:
         return "Dashboard";
     }
@@ -344,7 +358,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.4.1
+              for Linux · v1.5.0
             </div>
           </div>
         </div>
@@ -354,7 +368,8 @@ function App() {
             ["dashboard", "Dashboard"],
             ["servers", "Servers"],
             ["tasks", "Tasks"],
-            ["history", "History"]
+            ["history", "History"],
+            ["settings", "Settings"]
           ].map(([key, label]) => (
             <button
               key={key}
@@ -399,7 +414,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.4.1
+            PatchForge v1.5.0
           </div>
         </header>
 
@@ -465,15 +480,6 @@ function App() {
                 onChanged={loadData}
                 onError={setError}
                 onEdit={setEditingTask}
-                taskTimezone={taskTimezone}
-                onTaskTimezoneChange={(timezone) => {
-                  setTaskTimezone(timezone);
-
-                  localStorage.setItem(
-                    "patchforge-task-timezone",
-                    timezone
-                  );
-                }}
               />
             )}
 
@@ -522,6 +528,20 @@ function App() {
                 }}
               />
             )}
+
+          {page === "settings" && (
+            <SettingsPanel
+              taskTimezone={taskTimezone}
+              onTaskTimezoneChange={(timezone) => {
+                setTaskTimezone(timezone);
+
+                localStorage.setItem(
+                  "patchforge-task-timezone",
+                  timezone
+                );
+              }}
+            />
+          )}
           </>
         )}
       </main>
@@ -1420,9 +1440,7 @@ function TasksPanel({
   onAdd,
   onChanged,
   onError,
-  onEdit,
-  taskTimezone,
-  onTaskTimezoneChange
+  onEdit
 }: {
   tasks: ScheduledTask[];
   servers: Server[];
@@ -1430,8 +1448,6 @@ function TasksPanel({
   onChanged: () => Promise<void>;
   onError: (message: string) => void;
   onEdit: (task: ScheduledTask) => void;
-  taskTimezone: string;
-  onTaskTimezoneChange: (timezone: string) => void;
 }) {
   const [busyTask, setBusyTask] =
     useState<number | null>(null);
@@ -1584,31 +1600,6 @@ function TasksPanel({
         </h2>
 
         <div className="task-header-actions">
-          <label className="task-timezone-select">
-            <span>
-              Default timezone
-            </span>
-
-            <select
-              value={taskTimezone}
-              onChange={(event) =>
-                onTaskTimezoneChange(
-                  event.target.value
-                )
-              }
-            >
-              {getTimezones().map(
-                (zone) => (
-                  <option
-                    key={zone}
-                    value={zone}
-                  >
-                    {zone}
-                  </option>
-                )
-              )}
-            </select>
-          </label>
 
           <button
             className="button primary"
@@ -3677,6 +3668,979 @@ function ServerPanel({
         </>
       )}
     </section>
+  );
+}
+
+
+
+const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
+  SERVER_OFFLINE: "Server offline",
+  SERVER_ONLINE: "Server online again",
+  SSH_ERROR: "SSH error",
+  UPDATES_AVAILABLE: "Updates available",
+  INSTALL_SUCCESS: "Update installation successful",
+  INSTALL_FAILED: "Update installation failed",
+  CLEANUP_AVAILABLE: "Cleanup available",
+  CLEANUP_SUCCESS: "Cleanup successful",
+  CLEANUP_FAILED: "Cleanup failed",
+  REBOOT_REQUIRED: "Reboot required",
+  TASK_SUCCESS: "Scheduled task successful",
+  TASK_FAILED: "Scheduled task failed"
+};
+
+
+function SettingsPanel({
+  taskTimezone,
+  onTaskTimezoneChange
+}: {
+  taskTimezone: string;
+  onTaskTimezoneChange: (timezone: string) => void;
+}) {
+  const [settings, setSettings] =
+    useState<NotificationSettings | null>(null);
+
+  const [loadingSettings, setLoadingSettings] =
+    useState(true);
+
+  const [savingSettings, setSavingSettings] =
+    useState(false);
+
+  const [testingDiscord, setTestingDiscord] =
+    useState(false);
+
+  const [testingEmail, setTestingEmail] =
+    useState(false);
+
+  const [smtpPassword, setSmtpPassword] =
+    useState("");
+
+  const [discordWebhook, setDiscordWebhook] =
+    useState("");
+
+  const [recipientInput, setRecipientInput] =
+    useState("");
+
+  const [settingsError, setSettingsError] =
+    useState<string | null>(null);
+
+  const [settingsSuccess, setSettingsSuccess] =
+    useState<string | null>(null);
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadNotificationSettings() {
+      setLoadingSettings(true);
+      setSettingsError(null);
+
+      try {
+        const result =
+          await getNotificationSettings();
+
+        if (!cancelled) {
+          setSettings(result);
+
+          setRecipientInput(
+            result.email_recipients.join("\n")
+          );
+        }
+
+      } catch (err) {
+        if (!cancelled) {
+          setSettingsError(
+            err instanceof Error
+              ? err.message
+              : "Unable to load notification settings"
+          );
+        }
+
+      } finally {
+        if (!cancelled) {
+          setLoadingSettings(false);
+        }
+      }
+    }
+
+    void loadNotificationSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+  function updateLocalSettings(
+    changes: Partial<NotificationSettings>
+  ) {
+    setSettings(
+      (current) =>
+        current
+          ? {
+              ...current,
+              ...changes
+            }
+          : current
+    );
+
+    setSettingsSuccess(null);
+  }
+
+
+  function updateEventPreference(
+    eventKey: string,
+    channel: "email" | "discord",
+    enabled: boolean
+  ) {
+    setSettings(
+      (current) => {
+        if (!current) {
+          return current;
+        }
+
+        const events: NotificationEventPreference[] =
+          current.events.map(
+            (event) =>
+              event.event_key === eventKey
+                ? {
+                    ...event,
+                    [`${channel}_enabled`]:
+                      enabled
+                  }
+                : event
+          );
+
+        return {
+          ...current,
+          events
+        };
+      }
+    );
+
+    setSettingsSuccess(null);
+  }
+
+
+  async function saveDiscordSettings() {
+    if (!settings) {
+      return;
+    }
+
+    setSavingSettings(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const result =
+        await saveDiscordNotificationSettings({
+          discord_enabled:
+            settings.discord_enabled,
+
+          discord_webhook_url:
+            discordWebhook || null
+        });
+
+      setSettings(result);
+      setDiscordWebhook("");
+
+      setSettingsSuccess(
+        "Discord settings saved."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to save Discord settings"
+      );
+
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+
+  async function saveEmailSettings() {
+    if (!settings) {
+      return;
+    }
+
+    setSavingSettings(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    const recipients = recipientInput
+      .split(/\r?\n|,/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    try {
+      const result =
+        await saveEmailNotificationSettings({
+          email_enabled:
+            settings.email_enabled,
+
+          smtp_host:
+            settings.smtp_host,
+
+          smtp_port:
+            settings.smtp_port,
+
+          smtp_security:
+            settings.smtp_security,
+
+          smtp_username:
+            settings.smtp_username,
+
+          smtp_password:
+            smtpPassword || null,
+
+          email_from:
+            settings.email_from,
+
+          email_recipients:
+            recipients
+        });
+
+      setSettings(result);
+
+      setRecipientInput(
+        result.email_recipients.join("\n")
+      );
+
+      setSmtpPassword("");
+
+      setSettingsSuccess(
+        "Email settings saved."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to save Email settings"
+      );
+
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+
+  async function saveEventPreferences() {
+    if (!settings) {
+      return;
+    }
+
+    setSavingSettings(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const result =
+        await saveNotificationEventPreferences(
+          settings.events
+        );
+
+      setSettings(result);
+
+      setSettingsSuccess(
+        "Notification event preferences saved."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to save event preferences"
+      );
+
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+
+  async function sendDiscordTest() {
+    if (!settings) {
+      return;
+    }
+
+    setTestingDiscord(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      await testNotification({
+        channel: "discord",
+        discord_webhook_url:
+          discordWebhook || null
+      });
+
+      setSettingsSuccess(
+        "Discord test notification sent successfully."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to send Discord test notification"
+      );
+
+    } finally {
+      setTestingDiscord(false);
+    }
+  }
+
+
+  async function sendEmailTest() {
+    if (!settings) {
+      return;
+    }
+
+    setTestingEmail(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const recipients = recipientInput
+        .split(/\r?\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      await testNotification({
+        channel: "email",
+
+        smtp_host:
+          settings.smtp_host,
+
+        smtp_port:
+          settings.smtp_port,
+
+        smtp_security:
+          settings.smtp_security,
+
+        smtp_username:
+          settings.smtp_username,
+
+        smtp_password:
+          smtpPassword || null,
+
+        email_from:
+          settings.email_from,
+
+        email_recipients:
+          recipients
+      });
+
+      setSettingsSuccess(
+        "Email test notification sent successfully."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to send email test notification"
+      );
+
+    } finally {
+      setTestingEmail(false);
+    }
+  }
+
+
+  async function deleteDiscordConfiguration() {
+    if (!window.confirm(
+      "Delete the complete Discord notification configuration?"
+    )) {
+      return;
+    }
+
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const result =
+        await deleteDiscordNotificationSettings();
+
+      setSettings(result);
+      setDiscordWebhook("");
+
+      setSettingsSuccess(
+        "Discord notification configuration deleted."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete Discord configuration"
+      );
+    }
+  }
+
+
+  async function deleteEmailConfiguration() {
+    if (!window.confirm(
+      "Delete the complete email notification configuration?"
+    )) {
+      return;
+    }
+
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const result =
+        await deleteEmailNotificationSettings();
+
+      setSettings(result);
+      setSmtpPassword("");
+
+      setRecipientInput(
+        result.email_recipients.join("\n")
+      );
+
+      setSettingsSuccess(
+        "Email notification configuration deleted."
+      );
+
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete email configuration"
+      );
+    }
+  }
+
+
+  if (loadingSettings) {
+    return (
+      <section className="panel">
+        <div className="loading">
+          Loading notification settings…
+        </div>
+      </section>
+    );
+  }
+
+
+  if (!settings) {
+    return (
+      <section className="panel">
+        <div className="error-box">
+          Notification settings could not be loaded.
+        </div>
+      </section>
+    );
+  }
+
+
+  return (
+    <div className="settings-page">
+      {settingsError && (
+        <div className="error-box">
+          {settingsError}
+        </div>
+      )}
+
+      {settingsSuccess && (
+        <div className="operation-status success">
+          <span className="operation-status-icon">
+            ✓
+          </span>
+
+          <span>
+            {settingsSuccess}
+          </span>
+        </div>
+      )}
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">
+              General
+            </h2>
+
+            <p className="settings-description">
+              Global application defaults.
+            </p>
+          </div>
+        </div>
+
+        <div className="settings-form-grid">
+          <label>
+            <span>Default Task Timezone</span>
+
+            <select
+              value={taskTimezone}
+              onChange={(event) =>
+                onTaskTimezoneChange(
+                  event.target.value
+                )
+              }
+            >
+              {getTimezones().map(
+                (zone) => (
+                  <option
+                    key={zone}
+                    value={zone}
+                  >
+                    {zone}
+                  </option>
+                )
+              )}
+            </select>
+
+            <small className="form-help">
+              Used as the default timezone when creating
+              new scheduled tasks.
+            </small>
+          </label>
+        </div>
+      </section>
+
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">
+              Discord
+            </h2>
+
+            <p className="settings-description">
+              Send PatchForge notifications to a
+              Discord channel using an incoming webhook.
+            </p>
+          </div>
+
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={settings.discord_enabled}
+              onChange={(event) =>
+                updateLocalSettings({
+                  discord_enabled:
+                    event.target.checked
+                })
+              }
+            />
+
+            <span>
+              Enabled
+            </span>
+          </label>
+        </div>
+
+        <div className="settings-form-grid">
+          <label className="form-full">
+            <span>Webhook URL</span>
+
+            <input
+              type="password"
+              value={discordWebhook}
+              placeholder={
+                settings.discord_webhook_configured
+                  ? "Webhook configured — enter a new value to replace it"
+                  : "https://discord.com/api/webhooks/..."
+              }
+              onChange={(event) =>
+                setDiscordWebhook(
+                  event.target.value
+                )
+              }
+              autoComplete="new-password"
+            />
+          </label>
+
+          <div className="form-full settings-secret-state">
+            {settings.discord_webhook_configured ? (
+              <span className="badge ok">
+                Webhook configured
+              </span>
+            ) : (
+              <span className="badge neutral">
+                No webhook configured
+              </span>
+            )}
+          </div>
+
+          <div className="form-full settings-channel-actions">
+            <button
+              type="button"
+              className="button primary"
+              disabled={savingSettings}
+              onClick={() =>
+                void saveDiscordSettings()
+              }
+            >
+              {savingSettings
+                ? "Saving…"
+                : "Save Discord"}
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={
+                testingDiscord ||
+                savingSettings ||
+                !settings.discord_webhook_configured
+              }
+              onClick={() =>
+                void sendDiscordTest()
+              }
+            >
+              {testingDiscord
+                ? "Sending…"
+                : "Send Test Message"}
+            </button>
+
+            <button
+              type="button"
+              className="button danger"
+              disabled={
+                savingSettings ||
+                !settings.discord_webhook_configured
+              }
+              onClick={() =>
+                void deleteDiscordConfiguration()
+              }
+            >
+              Delete Discord Configuration
+            </button>
+          </div>
+        </div>
+      </section>
+
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">
+              Email
+            </h2>
+
+            <p className="settings-description">
+              Send notifications through an SMTP server.
+            </p>
+          </div>
+
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={settings.email_enabled}
+              onChange={(event) =>
+                updateLocalSettings({
+                  email_enabled:
+                    event.target.checked
+                })
+              }
+            />
+
+            <span>
+              Enabled
+            </span>
+          </label>
+        </div>
+
+        <div className="settings-form-grid">
+          <label>
+            <span>SMTP Host</span>
+
+            <input
+              value={settings.smtp_host ?? ""}
+              onChange={(event) =>
+                updateLocalSettings({
+                  smtp_host:
+                    event.target.value
+                })
+              }
+              placeholder="smtp.example.com"
+            />
+          </label>
+
+          <label>
+            <span>SMTP Port</span>
+
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={settings.smtp_port}
+              onChange={(event) =>
+                updateLocalSettings({
+                  smtp_port:
+                    Number(event.target.value)
+                    || 587
+                })
+              }
+            />
+          </label>
+
+          <label>
+            <span>Security</span>
+
+            <select
+              value={settings.smtp_security}
+              onChange={(event) =>
+                updateLocalSettings({
+                  smtp_security:
+                    event.target.value as
+                      NotificationSettings[
+                        "smtp_security"
+                      ]
+                })
+              }
+            >
+              <option value="starttls">
+                STARTTLS
+              </option>
+
+              <option value="tls">
+                TLS / SSL
+              </option>
+
+              <option value="none">
+                None
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>Username</span>
+
+            <input
+              value={settings.smtp_username ?? ""}
+              onChange={(event) =>
+                updateLocalSettings({
+                  smtp_username:
+                    event.target.value
+                })
+              }
+              autoComplete="username"
+            />
+          </label>
+
+          <label>
+            <span>Password</span>
+
+            <input
+              type="password"
+              value={smtpPassword}
+              placeholder={
+                settings.smtp_password_configured
+                  ? "Password configured — enter a new value to replace it"
+                  : "SMTP password"
+              }
+              onChange={(event) =>
+                setSmtpPassword(
+                  event.target.value
+                )
+              }
+              autoComplete="new-password"
+            />
+          </label>
+
+          <label>
+            <span>From Address</span>
+
+            <input
+              type="email"
+              value={settings.email_from ?? ""}
+              onChange={(event) =>
+                updateLocalSettings({
+                  email_from:
+                    event.target.value
+                })
+              }
+              placeholder="patchforge@example.com"
+            />
+          </label>
+
+          <label className="form-full">
+            <span>Recipients</span>
+
+            <textarea
+              value={recipientInput}
+              onChange={(event) =>
+                setRecipientInput(
+                  event.target.value
+                )
+              }
+              rows={4}
+              placeholder={
+                "admin@example.com\nops@example.com"
+              }
+            />
+
+            <small className="form-help">
+              Enter one address per line or separate
+              multiple addresses with commas.
+            </small>
+          </label>
+
+          <div className="form-full settings-secret-state">
+            {settings.smtp_password_configured ? (
+              <span className="badge ok">
+                SMTP password configured
+              </span>
+            ) : (
+              <span className="badge neutral">
+                No SMTP password configured
+              </span>
+            )}
+          </div>
+
+          <div className="form-full settings-channel-actions">
+            <button
+              type="button"
+              className="button primary"
+              disabled={savingSettings}
+              onClick={() =>
+                void saveEmailSettings()
+              }
+            >
+              {savingSettings
+                ? "Saving…"
+                : "Save Email"}
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={
+                testingEmail ||
+                savingSettings ||
+                !settings.smtp_host
+              }
+              onClick={() =>
+                void sendEmailTest()
+              }
+            >
+              {testingEmail
+                ? "Sending…"
+                : "Send Test Email"}
+            </button>
+
+            <button
+              type="button"
+              className="button danger"
+              disabled={
+                savingSettings ||
+                (
+                  !settings.smtp_host &&
+                  !settings.smtp_password_configured &&
+                  !settings.email_from &&
+                  settings.email_recipients.length === 0
+                )
+              }
+              onClick={() =>
+                void deleteEmailConfiguration()
+              }
+            >
+              Delete Email Configuration
+            </button>
+          </div>
+        </div>
+      </section>
+
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">
+              Notification Events
+            </h2>
+
+            <p className="settings-description">
+              Choose which events are sent through each
+              notification channel.
+            </p>
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table className="notification-event-table">
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Email</th>
+                <th>Discord</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {settings.events.map(
+                (event) => (
+                  <tr key={event.event_key}>
+                    <td>
+                      <div className="notification-event-name">
+                        {NOTIFICATION_EVENT_LABELS[
+                          event.event_key
+                        ] ?? event.event_key}
+                      </div>
+
+                      <div className="notification-event-key">
+                        {event.event_key}
+                      </div>
+                    </td>
+
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={event.email_enabled}
+                        onChange={(changeEvent) =>
+                          updateEventPreference(
+                            event.event_key,
+                            "email",
+                            changeEvent.target.checked
+                          )
+                        }
+                      />
+                    </td>
+
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={event.discord_enabled}
+                        onChange={(changeEvent) =>
+                          updateEventPreference(
+                            event.event_key,
+                            "discord",
+                            changeEvent.target.checked
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+
+      <div className="settings-save-bar">
+        <button
+          type="button"
+          className="button primary"
+          disabled={savingSettings}
+          onClick={() =>
+            void saveEventPreferences()
+          }
+        >
+          {savingSettings
+            ? "Saving…"
+            : "Save Event Preferences"}
+        </button>
+      </div>
+    </div>
   );
 }
 
