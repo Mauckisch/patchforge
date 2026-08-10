@@ -1020,3 +1020,22 @@ td {
   max-height: calc(100vh - 48px);
   overflow-y: auto;
 }
+
+/* Keep the sidebar fixed to the viewport while page content scrolls */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* Keep the GitHub link at the bottom of the sidebar */
+.sidebar-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+}

@@ -57,7 +57,7 @@ async def lifespan(
 
 app = FastAPI(
     title="PatchForge for Linux",
-    version="1.1.0",
+    version="1.1.1",
     lifespan=lifespan,
 )
 
@@ -77,7 +77,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "PatchForge for Linux",
-        "version": "1.1.0",
+        "version": "1.1.1",
     }
 
 

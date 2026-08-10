@@ -2,7 +2,7 @@
 
 PatchForge for Linux is a focused web application for managing package updates on Linux servers.
 
-Current version: **1.1.0**
+Current version: **1.1.1**
 
 ## Features
 
@@ -43,7 +43,7 @@ A reboot may be detected and displayed, but it cannot be triggered from PatchFor
 
 ## Supported Package Managers
 
-### Version 1.1.0
+### Version 1.1.1
 
 - APT
 
