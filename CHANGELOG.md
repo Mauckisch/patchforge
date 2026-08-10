@@ -5,6 +5,20 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.2.0]
+
+### Added
+
+- Added live server search to the Servers view.
+- Server search matches:
+  - server name
+  - system hostname
+  - IP address / host
+  - distribution
+  - package manager
+- Search is case-insensitive and updates the server list immediately while typing.
+- Added a dedicated empty state when no servers match the current search.
+
 ## \[1.1.1\]
 
 ### Fixed

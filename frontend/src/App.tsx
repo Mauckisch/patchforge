@@ -292,7 +292,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.1.1
+              for Linux · v1.2.0
             </div>
           </div>
         </div>
@@ -347,7 +347,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.1.1
+            PatchForge v1.2.0
           </div>
         </header>
 
@@ -3004,6 +3004,32 @@ function ServerPanel({
   onDelete: (server: Server) => void;
   onAdd: () => void;
 }) {
+  const [serverSearch, setServerSearch] =
+    useState("");
+
+  const normalizedServerSearch =
+    serverSearch.trim().toLowerCase();
+
+  const filteredServers =
+    normalizedServerSearch
+      ? servers.filter((server) => {
+          const searchableValues = [
+            server.name,
+            server.system_hostname,
+            server.host,
+            server.distribution,
+            server.package_manager
+          ];
+
+          return searchableValues.some(
+            (value) =>
+              value?.toLowerCase().includes(
+                normalizedServerSearch
+              )
+          );
+        })
+      : servers;
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -3019,13 +3045,44 @@ function ServerPanel({
         </button>
       </div>
 
+        {servers.length > 0 && (
+          <div className="server-search">
+            <input
+              type="search"
+              placeholder="Search servers..."
+              value={serverSearch}
+              onChange={(event) =>
+                setServerSearch(
+                  event.target.value
+                )
+              }
+            />
+
+            {serverSearch && (
+              <button
+                type="button"
+                className="button"
+                onClick={() =>
+                  setServerSearch("")
+                }
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
       {servers.length === 0 ? (
         <div className="empty">
           No servers configured.
         </div>
-      ) : (
-        <div className="server-grid">
-          {servers.map(
+        ) : filteredServers.length === 0 ? (
+          <div className="empty">
+            No servers match your search.
+          </div>
+        ) : (
+          <div className="server-grid">
+          {filteredServers.map(
             (server) => (
               <div
                 className="server-card"
