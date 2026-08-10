@@ -197,6 +197,52 @@ function App() {
 
   useEffect(() => {
     void loadData();
+
+    let cancelled = false;
+    let statusTimer: number | undefined;
+
+    async function pollServerStatus() {
+      try {
+        await checkAllServerStatus();
+
+        const serverData =
+          await getServers();
+
+        if (!cancelled) {
+          setServers(serverData);
+        }
+
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to check server status"
+          );
+        }
+      }
+
+      if (!cancelled) {
+        statusTimer = window.setTimeout(
+          () => {
+            void pollServerStatus();
+          },
+          60000
+        );
+      }
+    }
+
+    void pollServerStatus();
+
+    return () => {
+      cancelled = true;
+
+      if (statusTimer !== undefined) {
+        window.clearTimeout(
+          statusTimer
+        );
+      }
+    };
   }, []);
 
 
@@ -298,7 +344,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.3.3
+              for Linux · v1.3.4
             </div>
           </div>
         </div>
@@ -353,7 +399,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.3.3
+            PatchForge v1.3.4
           </div>
         </header>
 
@@ -537,7 +583,6 @@ function App() {
             setShowAddServer(false);
             await loadData();
           }}
-          onError={setError}
         />
       )}
 
@@ -2121,12 +2166,10 @@ function EditServerModal({
 
 function AddServerModal({
   onClose,
-  onCreated,
-  onError
+  onCreated
 }: {
   onClose: () => void;
   onCreated: () => Promise<void>;
-  onError: (message: string) => void;
 }) {
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
@@ -2150,12 +2193,16 @@ function AddServerModal({
   const [saving, setSaving] =
     useState(false);
 
+  const [error, setError] =
+    useState<string | null>(null);
+
 
   async function submit(
     event: FormEvent
   ) {
     event.preventDefault();
 
+    setError(null);
     setSaving(true);
 
     let createdServer: Server | null = null;
@@ -2191,7 +2238,7 @@ function AddServerModal({
       await onCreated();
 
     } catch (err) {
-      onError(
+      setError(
         err instanceof Error
           ? err.message
           : "Unable to add server"
@@ -2217,6 +2264,12 @@ function AddServerModal({
     <div className="modal-backdrop">
       <div className="modal modal-large">
         <h2>Add Server</h2>
+
+        {error && (
+          <div className="error-box">
+            {error}
+          </div>
+        )}
 
         <form
           className="form-grid"
@@ -3325,17 +3378,33 @@ function ServerPanel({
                     </div>
                   </div>
 
-                  <span
-                    className={
-                      server.reboot_required
-                        ? "badge warning"
-                        : "badge ok"
-                    }
-                  >
-                    {server.reboot_required
-                      ? "Reboot required"
-                      : "Ready"}
-                  </span>
+                  <div className="server-status-badges">
+                    <span
+                      className={
+                        server.connection_status === "ONLINE"
+                          ? "badge ok"
+                          : server.connection_status === "UNKNOWN"
+                            ? "badge neutral"
+                            : "badge danger"
+                      }
+                    >
+                      {server.connection_status === "ONLINE"
+                        ? "Online"
+                        : server.connection_status === "UNREACHABLE"
+                          ? "Offline"
+                          : server.connection_status === "AUTH_FAILED"
+                            ? "Authentication failed"
+                            : server.connection_status === "ERROR"
+                              ? "Error"
+                              : "Unknown"}
+                    </span>
+
+                    {server.reboot_required && (
+                      <span className="badge warning">
+                        Reboot required
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="server-meta">
@@ -3374,14 +3443,16 @@ function ServerPanel({
                 </div>
 
                 <div className="server-actions">
-                  <button
-                    className="button primary"
-                    onClick={() =>
-                      onUpdates(server)
-                    }
-                  >
-                    Updates
-                  </button>
+                  {server.connection_status === "ONLINE" && (
+                    <button
+                      className="button primary"
+                      onClick={() =>
+                        onUpdates(server)
+                      }
+                    >
+                      Updates
+                    </button>
+                  )}
 
                   <div className="server-action-spacer" />
 

@@ -5,6 +5,27 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.3.4]
+
+### Added
+
+- Added automatic server connection-status monitoring.
+- Server status is checked automatically when PatchForge is loaded and refreshed every 60 seconds.
+- Added dedicated Online, Offline, Authentication failed, Error, and Unknown status indicators.
+
+### Changed
+
+- Server cards now display the actual SSH connection status instead of always showing Ready.
+- Reboot-required status is displayed separately from the server connection status.
+- Offline or otherwise unavailable servers no longer offer package update actions.
+- Edit and Delete actions remain available for unavailable servers.
+
+### Fixed
+
+- Fixed powered-off or unreachable servers continuing to appear as Ready.
+- Fixed SSH connection failures only becoming visible after manually attempting an update check.
+- Fixed Add Server errors being displayed behind the modal instead of inside the Add Server dialog.
+
 ## [1.3.3]
 
 ### Fixed
