@@ -68,6 +68,10 @@ def run_database_migrations() -> None:
                 "ALTER TABLE servers "
                 "ADD COLUMN last_seen_at DATETIME",
 
+            "updates_checked_at":
+                "ALTER TABLE servers "
+                "ADD COLUMN updates_checked_at DATETIME",
+
             "last_check_at":
                 "ALTER TABLE servers "
                 "ADD COLUMN last_check_at DATETIME",
@@ -92,6 +96,21 @@ def run_database_migrations() -> None:
                 )
             )
         }
+
+        if "server_updates" in tables:
+            update_columns = _columns(
+                connection,
+                "server_updates",
+            )
+
+            if "held" not in update_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE server_updates "
+                        "ADD COLUMN held BOOLEAN "
+                        "NOT NULL DEFAULT 0"
+                    )
+                )
 
         if (
             "scheduled_tasks" in tables

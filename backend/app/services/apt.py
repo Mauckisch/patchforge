@@ -14,7 +14,10 @@ PACKAGE_NAME_PATTERN = re.compile(
 
 def _decode(value: str | bytes) -> str:
     if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
+        return value.decode(
+            "utf-8",
+            errors="replace",
+        )
 
     return value
 
@@ -25,20 +28,34 @@ def _execute(
     stdin_data: str | None = None,
     timeout: int = 120,
 ) -> tuple[int, str, str]:
-    channel = transport.open_session(timeout=10)
+    channel = transport.open_session(
+        timeout=10
+    )
 
     try:
         channel.settimeout(timeout)
         channel.exec_command(command)
 
         if stdin_data is not None:
-            channel.sendall(stdin_data.encode("utf-8"))
+            channel.sendall(
+                stdin_data.encode("utf-8")
+            )
             channel.shutdown_write()
 
-        stdout_raw = channel.makefile("r", -1).read()
-        stderr_raw = channel.makefile_stderr("r", -1).read()
+        stdout_raw = (
+            channel.makefile("r", -1).read()
+        )
 
-        exit_status = channel.recv_exit_status()
+        stderr_raw = (
+            channel.makefile_stderr(
+                "r",
+                -1,
+            ).read()
+        )
+
+        exit_status = (
+            channel.recv_exit_status()
+        )
 
         return (
             exit_status,
@@ -56,11 +73,17 @@ def _privileged_command(
     privilege_password: str | None,
 ) -> tuple[str, str | None]:
     if privilege_method == "root":
-        return f"LC_ALL=C {command}", None
+        return (
+            f"LC_ALL=C {command}",
+            None,
+        )
 
     if privilege_method == "sudo":
         if privilege_password is None:
-            return f"sudo -n env LC_ALL=C {command}", None
+            return (
+                f"sudo -n env LC_ALL=C {command}",
+                None,
+            )
 
         return (
             f"sudo -S -p '' env LC_ALL=C {command}",
@@ -68,7 +91,8 @@ def _privileged_command(
         )
 
     raise AptError(
-        f"Unsupported privilege method for APT: {privilege_method}"
+        "Unsupported privilege method "
+        f"for APT: {privilege_method}"
     )
 
 
@@ -77,10 +101,12 @@ def refresh_package_index(
     privilege_method: str,
     privilege_password: str | None,
 ) -> None:
-    command, stdin_data = _privileged_command(
-        "apt-get update",
-        privilege_method,
-        privilege_password,
+    command, stdin_data = (
+        _privileged_command(
+            "apt-get update",
+            privilege_method,
+            privilege_password,
+        )
     )
 
     status, stdout, stderr = _execute(
@@ -92,22 +118,32 @@ def refresh_package_index(
 
     if status != 0:
         raise AptError(
-            stderr or stdout or "apt-get update failed"
+            stderr
+            or stdout
+            or "apt-get update failed"
         )
 
 
-def list_updates(
+def _list_upgradable_packages(
     transport: paramiko.Transport,
 ) -> tuple[list[dict], str]:
     status, stdout, stderr = _execute(
         transport,
-        "LC_ALL=C apt list --upgradable 2>/dev/null",
+        (
+            "LC_ALL=C "
+            "apt list --upgradable "
+            "2>/dev/null"
+        ),
         timeout=60,
     )
 
     if status != 0:
         raise AptError(
-            stderr or "Unable to retrieve available APT updates"
+            stderr
+            or (
+                "Unable to retrieve "
+                "available APT updates"
+            )
         )
 
     updates: list[dict] = []
@@ -116,13 +152,17 @@ def list_updates(
         r"^(?P<name>[^/]+)/\S+\s+"
         r"(?P<available>\S+)\s+"
         r"\S+\s+"
-        r"\[upgradable from: (?P<installed>[^\]]+)\]$"
+        r"\[upgradable from: "
+        r"(?P<installed>[^\]]+)\]$"
     )
 
     for line in stdout.splitlines():
         line = line.strip()
 
-        if not line or line.startswith("Listing"):
+        if (
+            not line
+            or line.startswith("Listing")
+        ):
             continue
 
         match = pattern.match(line)
@@ -132,13 +172,145 @@ def list_updates(
 
         updates.append(
             {
-                "name": match.group("name"),
-                "installed_version": match.group("installed"),
-                "available_version": match.group("available"),
+                "name":
+                    match.group("name"),
+
+                "installed_version":
+                    match.group(
+                        "installed"
+                    ),
+
+                "available_version":
+                    match.group(
+                        "available"
+                    ),
             }
         )
 
     return updates, stdout
+
+
+def _get_kept_back_packages(
+    transport: paramiko.Transport,
+) -> set[str]:
+    status, stdout, stderr = _execute(
+        transport,
+        (
+            "LC_ALL=C "
+            "apt-get -s upgrade "
+            "-o Debug::NoLocking=1"
+        ),
+        timeout=120,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr
+            or stdout
+            or (
+                "Unable to determine "
+                "kept-back APT packages"
+            )
+        )
+
+    kept_back: set[str] = set()
+
+    lines = stdout.splitlines()
+
+    collecting = False
+
+    for raw_line in lines:
+        line = raw_line.strip()
+
+        if line == (
+            "The following packages "
+            "have been kept back:"
+        ):
+            collecting = True
+            continue
+
+        if not collecting:
+            continue
+
+        if not line:
+            continue
+
+        # APT begins the next section with
+        # a normal sentence such as:
+        #
+        # "The following packages will be upgraded:"
+        #
+        # or starts the transaction summary.
+        if (
+            line.startswith("The following ")
+            or re.match(
+                r"^\d+\s+upgraded,",
+                line,
+            )
+        ):
+            break
+
+        for package in line.split():
+            package = package.strip()
+
+            if (
+                package
+                and PACKAGE_NAME_PATTERN.fullmatch(
+                    package
+                )
+            ):
+                kept_back.add(package)
+
+    return kept_back
+
+
+def list_updates(
+    transport: paramiko.Transport,
+) -> tuple[
+    list[dict],
+    list[dict],
+    str,
+]:
+    all_updates, raw_output = (
+        _list_upgradable_packages(
+            transport
+        )
+    )
+
+    kept_back_names = (
+        _get_kept_back_packages(
+            transport
+        )
+    )
+
+    normal_updates: list[dict] = []
+    held_updates: list[dict] = []
+
+    for update in all_updates:
+        item = dict(update)
+
+        if (
+            update["name"]
+            in kept_back_names
+        ):
+            item["held"] = True
+
+            held_updates.append(
+                item
+            )
+
+        else:
+            item["held"] = False
+
+            normal_updates.append(
+                item
+            )
+
+    return (
+        normal_updates,
+        held_updates,
+        raw_output,
+    )
 
 
 def validate_requested_packages(
@@ -148,19 +320,26 @@ def validate_requested_packages(
     available_names = {
         update["name"]
         for update in available_updates
+        if not update.get(
+            "held",
+            False,
+        )
     }
 
     validated: list[str] = []
 
     for package in requested_packages:
-        if not PACKAGE_NAME_PATTERN.fullmatch(package):
+        if not PACKAGE_NAME_PATTERN.fullmatch(
+            package
+        ):
             raise AptError(
                 f"Invalid package name: {package}"
             )
 
         if package not in available_names:
             raise AptError(
-                f"Package is not an available update: {package}"
+                "Package is not an installable "
+                f"update: {package}"
             )
 
         if package not in validated:
@@ -177,19 +356,26 @@ def install_updates(
 ) -> None:
     if not packages:
         raise AptError(
-            "No packages selected for installation"
+            "No packages selected "
+            "for installation"
         )
 
-    package_arguments = " ".join(packages)
+    package_arguments = " ".join(
+        packages
+    )
 
-    command, stdin_data = _privileged_command(
-        (
-            "DEBIAN_FRONTEND=noninteractive "
-            "apt-get install -y --only-upgrade "
-            f"{package_arguments}"
-        ),
-        privilege_method,
-        privilege_password,
+    command, stdin_data = (
+        _privileged_command(
+            (
+                "DEBIAN_FRONTEND="
+                "noninteractive "
+                "apt-get install -y "
+                "--only-upgrade "
+                f"{package_arguments}"
+            ),
+            privilege_method,
+            privilege_password,
+        )
     )
 
     status, stdout, stderr = _execute(
@@ -201,23 +387,45 @@ def install_updates(
 
     if status != 0:
         raise AptError(
-            stderr or stdout or "APT update installation failed"
+            stderr
+            or stdout
+            or (
+                "APT update "
+                "installation failed"
+            )
         )
 
 
-def _kernel_sort_key(kernel: str) -> tuple:
-    parts = re.split(r"(\d+)", kernel)
+def _kernel_sort_key(
+    kernel: str,
+) -> tuple:
+    parts = re.split(
+        r"(\d+)",
+        kernel,
+    )
 
-    key: list[tuple[int, int | str]] = []
+    key: list[
+        tuple[int, int | str]
+    ] = []
 
     for part in parts:
         if not part:
             continue
 
         if part.isdigit():
-            key.append((0, int(part)))
+            key.append(
+                (
+                    0,
+                    int(part),
+                )
+            )
         else:
-            key.append((1, part.lower()))
+            key.append(
+                (
+                    1,
+                    part.lower(),
+                )
+            )
 
     return tuple(key)
 
@@ -227,44 +435,66 @@ def get_kernel_reboot_status(
 ) -> dict:
     flag_status, _, _ = _execute(
         transport,
-        "test -f /var/run/reboot-required",
+        (
+            "test -f "
+            "/var/run/reboot-required"
+        ),
         timeout=10,
     )
 
-    reboot_flag = flag_status == 0
+    reboot_flag = (
+        flag_status == 0
+    )
 
-    status, running_kernel, stderr = _execute(
-        transport,
-        "uname -r",
-        timeout=10,
+    status, running_kernel, stderr = (
+        _execute(
+            transport,
+            "uname -r",
+            timeout=10,
+        )
     )
 
     if status != 0:
         raise AptError(
-            stderr or "Unable to determine running kernel"
+            stderr
+            or (
+                "Unable to determine "
+                "running kernel"
+            )
         )
 
     status, kernel_files, _ = _execute(
         transport,
-        "ls -1 /boot/vmlinuz-* 2>/dev/null",
+        (
+            "ls -1 "
+            "/boot/vmlinuz-* "
+            "2>/dev/null"
+        ),
         timeout=10,
     )
 
     installed_kernels: list[str] = []
 
     if status == 0:
-        for line in kernel_files.splitlines():
+        for line in (
+            kernel_files.splitlines()
+        ):
             line = line.strip()
 
             prefix = "/boot/vmlinuz-"
 
             if line.startswith(prefix):
-                kernel = line[len(prefix):]
+                kernel = line[
+                    len(prefix):
+                ]
 
                 if kernel:
-                    installed_kernels.append(kernel)
+                    installed_kernels.append(
+                        kernel
+                    )
 
     newest_installed_kernel = None
+
     newer_kernel_installed = False
 
     if installed_kernels:
@@ -274,8 +504,12 @@ def get_kernel_reboot_status(
         )
 
         newer_kernel_installed = (
-            _kernel_sort_key(newest_installed_kernel)
-            > _kernel_sort_key(running_kernel)
+            _kernel_sort_key(
+                newest_installed_kernel
+            )
+            > _kernel_sort_key(
+                running_kernel
+            )
         )
 
     reboot_required = (
@@ -290,11 +524,14 @@ def get_kernel_reboot_status(
             {
                 "type": "kernel",
                 "message": (
-                    "A newer kernel is installed than the "
+                    "A newer kernel is "
+                    "installed than the "
                     "currently running kernel."
                 ),
-                "running_kernel": running_kernel,
-                "installed_kernel": newest_installed_kernel,
+                "running_kernel":
+                    running_kernel,
+                "installed_kernel":
+                    newest_installed_kernel,
             }
         )
 
@@ -303,28 +540,32 @@ def get_kernel_reboot_status(
             {
                 "type": "reboot_flag",
                 "message": (
-                    "The operating system has created "
+                    "The operating system "
+                    "has created "
                     "/var/run/reboot-required."
                 ),
             }
         )
 
     return {
-        "reboot_required": reboot_required,
-        "reboot_flag_present": reboot_flag,
-        "running_kernel": running_kernel,
-        "newest_installed_kernel": newest_installed_kernel,
-        "newer_kernel_installed": newer_kernel_installed,
-        "reasons": reasons,
+        "reboot_required":
+            reboot_required,
+
+        "reboot_flag_present":
+            reboot_flag,
+
+        "running_kernel":
+            running_kernel,
+
+        "newest_installed_kernel":
+            newest_installed_kernel,
+
+        "newer_kernel_installed":
+            newer_kernel_installed,
+
+        "reasons":
+            reasons,
     }
-
-
-def check_reboot_required(
-    transport: paramiko.Transport,
-) -> bool:
-    return get_kernel_reboot_status(
-        transport
-    )["reboot_required"]
 
 
 def cleanup(
@@ -332,31 +573,37 @@ def cleanup(
     privilege_method: str,
     privilege_password: str | None,
 ) -> dict:
-    autoclean_command, autoclean_stdin = _privileged_command(
-        "apt-get autoclean",
-        privilege_method,
-        privilege_password,
+    autoclean_command, autoclean_stdin = (
+        _privileged_command(
+            "apt-get autoclean -y",
+            privilege_method,
+            privilege_password,
+        )
     )
 
     status, stdout, stderr = _execute(
         transport,
         autoclean_command,
         stdin_data=autoclean_stdin,
-        timeout=300,
+        timeout=600,
     )
 
     if status != 0:
         raise AptError(
-            stderr or stdout or "APT autoclean failed"
+            stderr
+            or stdout
+            or "APT autoclean failed"
         )
 
-    autoremove_command, autoremove_stdin = _privileged_command(
-        "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y",
-        privilege_method,
-        privilege_password,
+    autoremove_command, autoremove_stdin = (
+        _privileged_command(
+            "apt-get autoremove -y",
+            privilege_method,
+            privilege_password,
+        )
     )
 
-    status, autoremove_stdout, autoremove_stderr = _execute(
+    status, stdout, stderr = _execute(
         transport,
         autoremove_command,
         stdin_data=autoremove_stdin,
@@ -365,8 +612,8 @@ def cleanup(
 
     if status != 0:
         raise AptError(
-            autoremove_stderr
-            or autoremove_stdout
+            stderr
+            or stdout
             or "APT autoremove failed"
         )
 

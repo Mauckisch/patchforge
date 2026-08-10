@@ -21,7 +21,9 @@ import {
   getServers,
   getSettings,
   getTasks,
+  getUpdateSnapshot,
   installAllUpdates,
+  installHeldUpdates,
   installSelectedUpdates,
   privilegeCheck,
   runTaskNow,
@@ -33,6 +35,7 @@ import {
 
 import type {
   HistoryEntry,
+  PackageUpdate,
   RebootStatus,
   ScheduledTask,
   Server,
@@ -58,15 +61,28 @@ function formatDate(
     return "Never";
   }
 
+  const hasTimezone =
+    /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(
+      value
+    );
+
+  const date = new Date(
+    hasTimezone
+      ? value
+      : `${value}Z`
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date";
+  }
+
   return new Intl.DateTimeFormat(
     undefined,
     {
       dateStyle: "short",
       timeStyle: "short"
     }
-  ).format(
-    new Date(`${value}Z`)
-  );
+  ).format(date);
 }
 
 
@@ -276,7 +292,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.0.0
+              for Linux · v1.1.0
             </div>
           </div>
         </div>
@@ -331,7 +347,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.0.0
+            PatchForge v1.1.0
           </div>
         </header>
 
@@ -2381,8 +2397,76 @@ function UpdateModal({
   const [selected, setSelected] =
     useState<string[]>([]);
 
+  const [heldUpdates, setHeldUpdates] =
+    useState<PackageUpdate[]>([]);
+
+  const [selectedHeld, setSelectedHeld] =
+    useState<string[]>([]);
+
+  const [showHeldUpdates, setShowHeldUpdates] =
+    useState(false);
+
   const [busy, setBusy] =
     useState(false);
+
+  const [snapshotLoaded, setSnapshotLoaded] =
+    useState(false);
+
+  const [updatesCheckedAt, setUpdatesCheckedAt] =
+    useState<string | null>(
+      server.updates_checked_at
+    );
+
+
+  async function loadSnapshot() {
+    try {
+      const snapshot =
+        await getUpdateSnapshot(
+          server.id
+        );
+
+      setResult({
+        server_ids: [
+          snapshot.server_id
+        ],
+        server:
+          snapshot.server,
+        system_hostname:
+          snapshot.system_hostname,
+        package_manager:
+          snapshot.package_manager
+          ?? server.package_manager
+          ?? "unknown",
+        updates_available:
+          snapshot.updates_available,
+        reboot_required:
+          snapshot.reboot_required,
+        updates:
+          snapshot.updates
+      });
+
+      setSelected(
+        snapshot.updates.map(
+          (update) =>
+            update.name
+        )
+      );
+
+      setUpdatesCheckedAt(
+        snapshot.updates_checked_at
+      );
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load saved update status"
+      );
+
+    } finally {
+      setSnapshotLoaded(true);
+    }
+  }
 
 
   async function refresh() {
@@ -2399,6 +2483,16 @@ function UpdateModal({
 
       setResult(updateResult);
       setRebootStatus(rebootResult);
+
+      setHeldUpdates(
+        updateResult.held_updates ?? []
+      );
+
+      setSelectedHeld([]);
+
+      setUpdatesCheckedAt(
+        new Date().toISOString()
+      );
 
       setSelected(
         updateResult.updates.map(
@@ -2420,6 +2514,11 @@ function UpdateModal({
       setBusy(false);
     }
   }
+
+
+  useEffect(() => {
+    void loadSnapshot();
+  }, [server.id]);
 
 
   return (
@@ -2485,6 +2584,15 @@ function UpdateModal({
           </div>
         </div>
 
+        <div className="update-last-checked">
+          Last checked:{" "}
+          <strong>
+            {updatesCheckedAt
+              ? formatDate(updatesCheckedAt)
+              : "Never"}
+          </strong>
+        </div>
+
         {rebootStatus?.reboot_required && (
           <div className="reboot-warning">
             <strong>
@@ -2536,6 +2644,22 @@ function UpdateModal({
               ? "Checking…"
               : "Check Updates"}
           </button>
+
+          {heldUpdates.length > 0 && (
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() =>
+                setShowHeldUpdates(
+                  (current) => !current
+                )
+              }
+            >
+              {showHeldUpdates
+                ? "Hide held packages"
+                : `Show held packages (${heldUpdates.length})`}
+            </button>
+          )}
 
           <button
             className="button"
@@ -2629,7 +2753,163 @@ function UpdateModal({
           </button>
         </div>
 
-        {!result ? (
+        {showHeldUpdates && heldUpdates.length > 0 && (
+          <div className="held-updates-section">
+            <div className="held-warning">
+              <strong>
+                Caution: Held packages
+              </strong>
+
+              <p>
+                These packages were held back by the system
+                and are excluded from normal updates.
+                Updating them may require dependency changes
+                or could affect system stability.
+              </p>
+
+              <p>
+                Only proceed if you understand why they were
+                held and have verified that the upgrade is safe.
+              </p>
+
+              <small>
+                Held packages are never included in
+                "Install All" or scheduled update installations.
+                They can only be installed here through an
+                explicit manual selection.
+              </small>
+            </div>
+
+            <div className="table-wrap update-table held-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Status</th>
+                    <th>Package</th>
+                    <th>Installed</th>
+                    <th>Available</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {heldUpdates.map(
+                    (update) => (
+                      <tr key={update.name}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={
+                              selectedHeld.includes(
+                                update.name
+                              )
+                            }
+                            onChange={() =>
+                              setSelectedHeld(
+                                (current) =>
+                                  current.includes(
+                                    update.name
+                                  )
+                                    ? current.filter(
+                                        (item) =>
+                                          item !==
+                                          update.name
+                                      )
+                                    : [
+                                        ...current,
+                                        update.name
+                                      ]
+                              )
+                            }
+                          />
+                        </td>
+
+                        <td>
+                          <span className="badge warning">
+                            HELD
+                          </span>
+                        </td>
+
+                        <td>
+                          {update.name}
+                        </td>
+
+                        <td>
+                          {update.installed_version}
+                        </td>
+
+                        <td>
+                          {update.available_version}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+              <div className="held-install-actions">
+                <button
+                  className="button warning"
+                  disabled={
+                    busy ||
+                    selectedHeld.length === 0
+                  }
+                  onClick={async () => {
+                    const packageList =
+                      selectedHeld.join(", ");
+
+                    if (!window.confirm(
+                      `WARNING: The following package(s) were held back by APT:
+
+${packageList}
+
+Installing held packages may require dependency changes or affect system stability. Continue only if you have verified that these upgrades are safe.
+
+Proceed with installation?`
+                    )) {
+                      return;
+                    }
+
+                    setBusy(true);
+
+                    try {
+                      await installHeldUpdates(
+                        server.id,
+                        selectedHeld
+                      );
+
+                      setSelectedHeld([]);
+
+                      await refresh();
+
+                    } catch (err) {
+                      onError(
+                        err instanceof Error
+                          ? err.message
+                          : "Held package installation failed"
+                      );
+
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Install Selected Held Packages
+                  {" "}
+                  ({selectedHeld.length})
+                </button>
+              </div>
+          </div>
+        )}
+
+        {!snapshotLoaded ? (
+          <div className="update-not-checked">
+            <strong>
+              Loading last update status…
+            </strong>
+          </div>
+        ) : !result ? (
           <div className="update-not-checked">
             <strong>
               Updates have not been checked yet.

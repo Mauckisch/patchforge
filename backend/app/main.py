@@ -23,6 +23,7 @@ from app.models.credential import ServerCredential
 from app.models.history import HistoryEntry
 from app.models.host_key import ServerHostKey
 from app.models.server import Server
+from app.models.server_update import ServerUpdate
 from app.models.settings import AppSettings
 from app.models.task import ScheduledTask
 from app.models.task_target import ScheduledTaskTarget
@@ -56,7 +57,7 @@ async def lifespan(
 
 app = FastAPI(
     title="PatchForge for Linux",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -76,7 +77,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "PatchForge for Linux",
-        "version": "1.0.0",
+        "version": "1.1.0",
     }
 
 

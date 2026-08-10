@@ -89,6 +89,11 @@ class Server(Base):
         nullable=True,
     )
 
+    updates_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
     last_check_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,

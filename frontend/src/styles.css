@@ -942,3 +942,81 @@ td {
   font-size: 13px;
   line-height: 1.5;
 }
+
+.update-last-checked {
+  margin: -6px 0 14px;
+  color: #7f9187;
+  font-size: 12px;
+}
+
+.update-last-checked strong {
+  color: #b8c6be;
+  font-weight: 600;
+}
+
+.held-updates-section {
+  margin: 18px 0;
+}
+
+.held-warning {
+  border: 1px solid #6c5726;
+  border-radius: 10px;
+  background: rgba(171, 128, 35, 0.10);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.held-warning strong {
+  display: block;
+  color: #e5bd5c;
+  margin-bottom: 8px;
+}
+
+.held-warning p {
+  color: #c7b98f;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 5px 0;
+}
+
+.held-warning small {
+  display: block;
+  color: #9e916c;
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+.held-table {
+  opacity: 0.92;
+}
+
+.held-install-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.button.warning {
+  border-color: #80672b;
+  background: rgba(171, 128, 35, 0.14);
+  color: #e5bd5c;
+}
+
+.button.warning:hover:not(:disabled) {
+  background: rgba(171, 128, 35, 0.22);
+}
+
+.button.warning:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modal-backdrop {
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.modal {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}

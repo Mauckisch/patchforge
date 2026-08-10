@@ -19,6 +19,7 @@ export interface Server {
   updates_available: number;
 
   last_seen_at: string | null;
+  updates_checked_at: string | null;
   last_check_at: string | null;
   last_error: string | null;
 
@@ -65,6 +66,7 @@ export interface PackageUpdate {
   name: string;
   installed_version: string;
   available_version: string;
+  held?: boolean;
 }
 
 export interface UpdateResult {
@@ -73,8 +75,10 @@ export interface UpdateResult {
   system_hostname: string | null;
   package_manager: string;
   updates_available: number;
+  held_updates_available?: number;
   reboot_required: boolean;
   updates: PackageUpdate[];
+  held_updates?: PackageUpdate[];
 }
 
 export interface InstallResult {

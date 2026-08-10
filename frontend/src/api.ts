@@ -412,3 +412,56 @@ export function checkServerStatus(
     }
   );
 }
+
+
+export interface UpdateSnapshot {
+  server_id: number;
+  server: string;
+  system_hostname: string | null;
+  package_manager: string | null;
+  updates_available: number;
+  held_updates_available: number;
+  updates_checked_at: string | null;
+  reboot_required: boolean;
+
+  updates: {
+    name: string;
+    installed_version: string;
+    available_version: string;
+  }[];
+
+  held_updates: {
+    name: string;
+    installed_version: string;
+    available_version: string;
+    held: true;
+  }[];
+}
+
+
+export function getUpdateSnapshot(
+  serverId: number
+): Promise<UpdateSnapshot> {
+  return request<UpdateSnapshot>(
+    `/api/servers/${serverId}/updates/snapshot`
+  );
+}
+
+
+export function installHeldUpdates(
+  serverId: number,
+  packages: string[]
+): Promise<InstallResult> {
+  return request<InstallResult>(
+    `/api/servers/${serverId}/updates/install-held`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        packages
+      })
+    }
+  );
+}

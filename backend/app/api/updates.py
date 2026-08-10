@@ -26,6 +26,12 @@ from app.services.privilege import (
 from app.updaters.base import UpdaterError
 from app.updaters.registry import get_updater
 
+from app.services.server_status import mark_online
+from app.services.update_snapshot import (
+    get_update_snapshot,
+    replace_update_snapshot,
+)
+
 
 router = APIRouter(
     prefix="/api/servers",
@@ -234,12 +240,39 @@ def check_updates(
                 privilege_password,
             )
 
-            updates = updater.list_updates(
-                transport
-            )
+            if hasattr(
+                updater,
+                "list_update_state",
+            ):
+                update_state = (
+                    updater.list_update_state(
+                        transport
+                    )
+                )
 
-            reboot_status = updater.get_reboot_status(
-                transport
+                updates = (
+                    update_state["updates"]
+                )
+
+                held_updates = (
+                    update_state[
+                        "held_updates"
+                    ]
+                )
+
+            else:
+                updates = (
+                    updater.list_updates(
+                        transport
+                    )
+                )
+
+                held_updates = []
+
+            reboot_status = (
+                updater.get_reboot_status(
+                    transport
+                )
             )
 
         finally:
@@ -249,11 +282,13 @@ def check_updates(
             reboot_status["reboot_required"]
         )
 
-        server.updates_available = len(
-            updates
+        replace_update_snapshot(
+            db,
+            server,
+            updates,
+            held_updates,
         )
 
-        from app.services.server_status import mark_online
         mark_online(server)
 
         db.commit()
@@ -275,8 +310,10 @@ def check_updates(
             "system_hostname": server.system_hostname,
             "package_manager": server.package_manager,
             "updates_available": len(updates),
+            "held_updates_available": len(held_updates),
             "reboot_required": server.reboot_required,
             "updates": updates,
+            "held_updates": held_updates,
         }
 
     except (
@@ -676,3 +713,242 @@ def cleanup_server(
             ACTION_CLEANUP,
             exc,
         )
+
+
+@router.post("/{server_id}/updates/install-held")
+def install_selected_held_updates(
+    server_id: int,
+    payload: InstallUpdatesRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    server = _get_server(
+        server_id,
+        db,
+    )
+
+    try:
+        (
+            updater,
+            transport,
+            method,
+            privilege_password,
+        ) = _open_update_session(
+            server,
+            db,
+        )
+
+        try:
+            updater.refresh_package_index(
+                transport,
+                method,
+                privilege_password,
+            )
+
+            if not hasattr(
+                updater,
+                "list_update_state",
+            ):
+                raise UpdaterError(
+                    "Held-package installation is not "
+                    "supported by this package manager"
+                )
+
+            update_state = updater.list_update_state(
+                transport
+            )
+
+            held_updates = update_state[
+                "held_updates"
+            ]
+
+            held_names = {
+                update["name"]
+                for update in held_updates
+            }
+
+            validated_packages: list[str] = []
+
+            for package in payload.packages:
+                if package not in held_names:
+                    raise UpdaterError(
+                        "Package is not currently held back: "
+                        f"{package}"
+                    )
+
+                if package not in validated_packages:
+                    validated_packages.append(
+                        package
+                    )
+
+            if not validated_packages:
+                raise UpdaterError(
+                    "No held packages selected"
+                )
+
+            updater.install_updates(
+                transport,
+                validated_packages,
+                method,
+                privilege_password,
+            )
+
+            update_state_after = (
+                updater.list_update_state(
+                    transport
+                )
+            )
+
+            remaining_updates = (
+                update_state_after[
+                    "updates"
+                ]
+            )
+
+            remaining_held_updates = (
+                update_state_after[
+                    "held_updates"
+                ]
+            )
+
+            reboot_status = (
+                updater.get_reboot_status(
+                    transport
+                )
+            )
+
+        finally:
+            transport.close()
+
+        server.reboot_required = (
+            reboot_status[
+                "reboot_required"
+            ]
+        )
+
+        replace_update_snapshot(
+            db,
+            server,
+            remaining_updates,
+            remaining_held_updates,
+        )
+
+        mark_online(server)
+
+        db.commit()
+        db.refresh(server)
+
+        create_history_entry(
+            db=db,
+            server=server,
+            action="INSTALL_HELD",
+            status=STATUS_SUCCESS,
+            package_count=len(
+                validated_packages
+            ),
+            reboot_required=(
+                server.reboot_required
+            ),
+            message=(
+                "Explicitly installed held package(s): "
+                + ", ".join(
+                    validated_packages
+                )
+            ),
+        )
+
+        return {
+            "server_id": server.id,
+            "server": server.name,
+            "system_hostname":
+                server.system_hostname,
+            "installed_packages":
+                validated_packages,
+            "installed_count":
+                len(validated_packages),
+            "remaining_updates":
+                len(remaining_updates),
+            "remaining_held_updates":
+                len(
+                    remaining_held_updates
+                ),
+            "reboot_required":
+                server.reboot_required,
+        }
+
+    except (
+        AuthenticationError,
+        PrivilegeUnavailableError,
+        PrivilegeError,
+        DiscoveryError,
+        UpdaterError,
+    ) as exc:
+        _raise_update_error(
+            db,
+            server,
+            "INSTALL_HELD",
+            exc,
+        )
+
+
+@router.get(
+    "/{server_id}/updates/snapshot",
+)
+def get_saved_update_snapshot(
+    server_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    server = db.get(
+        Server,
+        server_id,
+    )
+
+    if server is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Server not found",
+        )
+
+    saved_updates = get_update_snapshot(
+        db,
+        server.id,
+    )
+
+    updates = [
+        {
+            "name": update.name,
+            "installed_version": update.installed_version,
+            "available_version": update.available_version,
+        }
+        for update in saved_updates
+        if not update.held
+    ]
+
+    held_updates = [
+        {
+            "name": update.name,
+            "installed_version": update.installed_version,
+            "available_version": update.available_version,
+            "held": True,
+        }
+        for update in saved_updates
+        if update.held
+    ]
+
+    return {
+        "server_id": server.id,
+        "server": server.name,
+        "system_hostname": server.system_hostname,
+        "package_manager": server.package_manager,
+
+        # Normal/installable updates only.
+        "updates_available": len(updates),
+
+        # Informational only.
+        "held_updates_available": len(held_updates),
+
+        "updates_checked_at": server.updates_checked_at,
+        "reboot_required": server.reboot_required,
+
+        "updates": updates,
+        "held_updates": held_updates,
+    }
