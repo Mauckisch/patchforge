@@ -5,6 +5,18 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.3.3]
+
+### Fixed
+
+- Fixed ARM64 Docker image builds failing during the frontend build
+  under QEMU emulation.
+- The architecture-independent React/Vite frontend is now built on the
+  native Docker build platform instead of being rebuilt under target
+  architecture emulation.
+- Improved reliability and performance of multi-platform Docker builds
+  for `linux/amd64` and `linux/arm64`.
+
 ## [1.3.2]
 
 ### Added
