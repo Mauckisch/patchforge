@@ -5,6 +5,44 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.3.1]
+
+### Added
+
+- Added a complete visual identity for PatchForge for Linux.
+  - Added the official PatchForge logo.
+  - Added a standalone PatchForge application icon.
+  - Added a dedicated SVG favicon.
+  - Added favicon artwork designed to remain clearly visible on dark
+    browser and operating-system interfaces.
+- Added the PatchForge project logo to the GitHub README.
+
+### Changed
+
+- Replaced the previous text-based `P` sidebar mark with the official
+  PatchForge application icon.
+- Updated application branding to consistently use the new PatchForge
+  visual identity across the web interface, browser favicon, and
+  project documentation.
+
+### Fixed
+
+- Fixed APT update classification that could incorrectly report normal
+  package updates as held packages.
+- Improved the distinction between packages explicitly held by APT and
+  packages that cannot be installed by a normal `apt-get upgrade`
+  because the upgrade requires dependency changes.
+- Packages requiring a full APT upgrade path are no longer
+  automatically treated as explicitly held packages solely because
+  `apt-get upgrade` reports them as kept back.
+
+### Safety
+
+- Explicitly held packages continue to use PatchForge's protected
+  held-package workflow.
+- The classification fix does not weaken the existing protection for
+  held packages or persistent PatchForge package locks.
+
 ## [1.3.0]
 
 ### Added

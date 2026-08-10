@@ -193,11 +193,20 @@ def _list_upgradable_packages(
 def _get_kept_back_packages(
     transport: paramiko.Transport,
 ) -> set[str]:
+    # Use full-upgrade for classification.
+    #
+    # A normal "apt-get upgrade" intentionally keeps packages back
+    # whenever their upgrade requires installing additional packages
+    # or changing dependencies. Kernel meta packages are a common
+    # example and must not therefore be classified as HELD.
+    #
+    # Packages still kept back during a full-upgrade simulation are
+    # treated as exceptional/held updates by PatchForge.
     status, stdout, stderr = _execute(
         transport,
         (
             "LC_ALL=C "
-            "apt-get -s upgrade "
+            "apt-get -s full-upgrade "
             "-o Debug::NoLocking=1"
         ),
         timeout=120,
@@ -235,12 +244,6 @@ def _get_kept_back_packages(
         if not line:
             continue
 
-        # APT begins the next section with
-        # a normal sentence such as:
-        #
-        # "The following packages will be upgraded:"
-        #
-        # or starts the transaction summary.
         if (
             line.startswith("The following ")
             or re.match(

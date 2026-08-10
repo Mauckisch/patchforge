@@ -285,7 +285,11 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            P
+            <img
+              src="/branding/patchforge-icon.svg"
+              alt="PatchForge"
+              className="brand-logo"
+            />
           </div>
 
           <div>
@@ -294,7 +298,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.3.0
+              for Linux · v1.3.1
             </div>
           </div>
         </div>
@@ -349,7 +353,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.3.0
+            PatchForge v1.3.1
           </div>
         </header>
 

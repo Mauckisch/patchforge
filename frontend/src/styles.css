@@ -69,17 +69,22 @@ a {
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: #28c76f;
-  color: #08120c;
+  width: 46px;
+  height: 46px;
   display: grid;
   place-items: center;
-  font-weight: 900;
-  font-size: 20px;
-  box-shadow:
-    0 0 30px rgba(40, 199, 111, 0.15);
+  flex: 0 0 auto;
+}
+
+.brand-logo {
+  display: block;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  filter:
+    drop-shadow(
+      0 0 12px rgba(40, 199, 111, 0.18)
+    );
 }
 
 .brand-title {

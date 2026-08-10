@@ -16,6 +16,7 @@ COPY frontend/package.json ./
 COPY frontend/tsconfig.json ./
 COPY frontend/vite.config.ts ./
 COPY frontend/index.html ./
+COPY frontend/public ./public
 COPY frontend/src ./src
 
 RUN npm install

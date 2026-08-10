@@ -58,7 +58,7 @@ async def lifespan(
 
 app = FastAPI(
     title="PatchForge for Linux",
-    version="1.3.0",
+    version="1.3.1",
     lifespan=lifespan,
 )
 
@@ -78,7 +78,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "PatchForge for Linux",
-        "version": "1.3.0",
+        "version": "1.3.1",
     }
 
 
@@ -92,6 +92,17 @@ if FRONTEND_DIR.exists():
                 directory=assets_dir
             ),
             name="assets",
+        )
+
+    branding_dir = FRONTEND_DIR / "branding"
+
+    if branding_dir.exists():
+        app.mount(
+            "/branding",
+            StaticFiles(
+                directory=branding_dir
+            ),
+            name="branding",
         )
 
 

@@ -1,8 +1,16 @@
+<p align="center">
+  <img
+    src="frontend/public/branding/patchforge-logo.svg"
+    alt="PatchForge for Linux Logo"
+    width="760"
+  >
+</p>
+
 # PatchForge for Linux
 
 PatchForge for Linux is a focused web application for managing package updates on Linux servers.
 
-Current version: **1.3.0**
+Current version: **1.3.1**
 
 ## Features
 
