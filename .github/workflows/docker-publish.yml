@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -45,3 +45,47 @@ jobs:
             org.opencontainers.image.title=PatchForge for Linux
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import os
+          import re
+
+          version = os.environ["RELEASE_VERSION"]
+          changelog = Path("CHANGELOG.md").read_text()
+
+          pattern = re.compile(
+              rf"^## \[{re.escape(version)}\]\n"
+              rf"(.*?)(?=^## \[|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+
+          match = pattern.search(changelog)
+
+          if not match:
+              raise SystemExit(
+                  f"Changelog section for {version} not found"
+              )
+
+          notes = match.group(1).strip() + "\n"
+
+          Path("RELEASE_NOTES.md").write_text(notes)
+
+          print(
+              f"Prepared release notes for {version}"
+          )
+          PYTHON
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "PatchForge for Linux ${{ github.ref_name }}" \
+            --notes-file RELEASE_NOTES.md

@@ -5,6 +5,39 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.3.2]
+
+### Added
+
+- Added visible operation status feedback to the update interface.
+  - Update checks now display an active operation status.
+  - Selected package installations display their current operation.
+  - Install All displays an active installation status.
+  - Package cleanup displays an active cleanup status.
+  - Held-package installations display an active installation status.
+- Added a spinner while package-management operations are running.
+- Added persistent success feedback after an operation completes.
+- Added a dedicated failure state for unsuccessful operations.
+- Added automatic GitHub Release creation for version tags.
+- GitHub Release notes are automatically extracted from the matching
+  version section in `CHANGELOG.md`.
+
+### Changed
+
+- GitHub Actions now has permission to create repository releases in
+  addition to publishing Docker images.
+- Release tags continue to publish versioned and `latest` Docker images
+  while also creating the corresponding GitHub Release.
+
+### Fixed
+
+- Fixed the main application layout being able to expand beyond the
+  available viewport width.
+- Made the main content grid properly shrink within the available
+  horizontal space.
+- Fixed dashboard content being cut off on the right side at certain
+  viewport sizes.
+
 ## [1.3.1]
 
 ### Added

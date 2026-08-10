@@ -298,7 +298,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.3.1
+              for Linux · v1.3.2
             </div>
           </div>
         </div>
@@ -353,7 +353,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.3.1
+            PatchForge v1.3.2
           </div>
         </header>
 
@@ -2418,6 +2418,9 @@ function UpdateModal({
   const [busy, setBusy] =
     useState(false);
 
+  const [operationStatus, setOperationStatus] =
+    useState<string | null>(null);
+
   const [snapshotLoaded, setSnapshotLoaded] =
     useState(false);
 
@@ -2537,8 +2540,11 @@ function UpdateModal({
   }
 
 
-  async function refresh() {
+  async function refresh(
+    statusMessage = "Checking for updates…"
+  ) {
     setBusy(true);
+    setOperationStatus(statusMessage);
 
     try {
       const [
@@ -2585,6 +2591,7 @@ function UpdateModal({
 
     } finally {
       setBusy(false);
+      setOperationStatus(null);
     }
   }
 
@@ -2705,7 +2712,39 @@ function UpdateModal({
           </div>
         )}
 
-        <div className="update-toolbar">
+        {operationStatus && (
+          <div
+            className={
+              operationStatus === "Operation failed."
+                ? "operation-status failed"
+                : busy
+                  ? "operation-status working"
+                  : "operation-status success"
+            }
+          >
+            {busy ? (
+              <span
+                className="operation-spinner"
+                aria-hidden="true"
+              />
+            ) : (
+              <span
+                className="operation-status-icon"
+                aria-hidden="true"
+              >
+                {operationStatus === "Operation failed."
+                  ? "!"
+                  : "✓"}
+              </span>
+            )}
+
+            <strong>
+              {operationStatus}
+            </strong>
+          </div>
+        )}
+
+      <div className="update-toolbar">
           <button
             className="button primary"
             disabled={busy}
@@ -2713,9 +2752,7 @@ function UpdateModal({
               void refresh()
             }
           >
-            {busy
-              ? "Checking…"
-              : "Check Updates"}
+            Check Updates
           </button>
 
           {heldUpdates.length > 0 && (
@@ -2744,6 +2781,9 @@ function UpdateModal({
                 return;
               }
 
+              setOperationStatus(
+                "Running package cleanup…"
+              );
               setBusy(true);
 
               try {
@@ -2751,7 +2791,24 @@ function UpdateModal({
                   server.id
                 );
 
-                await refresh();
+                await refresh(
+                  "Refreshing package state…"
+                );
+
+                setOperationStatus(
+                  "Package cleanup completed successfully."
+                );
+
+              } catch (err) {
+                setOperationStatus(
+                  "Operation failed."
+                );
+
+                onError(
+                  err instanceof Error
+                    ? err.message
+                    : "Package cleanup failed"
+                );
 
               } finally {
                 setBusy(false);
@@ -2776,6 +2833,9 @@ function UpdateModal({
                 return;
               }
 
+              setOperationStatus(
+                "Installing selected updates…"
+              );
               setBusy(true);
 
               try {
@@ -2784,7 +2844,24 @@ function UpdateModal({
                   selected
                 );
 
-                await refresh();
+                await refresh(
+                  "Refreshing package state…"
+                );
+
+                setOperationStatus(
+                  "Selected updates installed successfully."
+                );
+
+              } catch (err) {
+                setOperationStatus(
+                  "Operation failed."
+                );
+
+                onError(
+                  err instanceof Error
+                    ? err.message
+                    : "Selected update installation failed"
+                );
 
               } finally {
                 setBusy(false);
@@ -2808,6 +2885,9 @@ function UpdateModal({
                 return;
               }
 
+              setOperationStatus(
+                "Installing all available updates…"
+              );
               setBusy(true);
 
               try {
@@ -2815,7 +2895,24 @@ function UpdateModal({
                   server.id
                 );
 
-                await refresh();
+                await refresh(
+                  "Refreshing package state…"
+                );
+
+                setOperationStatus(
+                  "All available updates installed successfully."
+                );
+
+              } catch (err) {
+                setOperationStatus(
+                  "Operation failed."
+                );
+
+                onError(
+                  err instanceof Error
+                    ? err.message
+                    : "Update installation failed"
+                );
 
               } finally {
                 setBusy(false);
@@ -2965,6 +3062,9 @@ Proceed with installation?`
                       return;
                     }
 
+                    setOperationStatus(
+                      "Installing selected held packages…"
+                    );
                     setBusy(true);
 
                     try {
@@ -2975,9 +3075,19 @@ Proceed with installation?`
 
                       setSelectedHeld([]);
 
-                      await refresh();
+                      await refresh(
+                        "Refreshing package state…"
+                      );
+
+                      setOperationStatus(
+                        "Held packages installed successfully."
+                      );
 
                     } catch (err) {
+                      setOperationStatus(
+                        "Operation failed."
+                      );
+
                       onError(
                         err instanceof Error
                           ? err.message
