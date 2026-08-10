@@ -5,6 +5,57 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.3.0]
+
+### Added
+
+- Added persistent per-server package locks.
+  - Individual packages can be explicitly locked from the update
+    interface.
+  - Locked packages are marked with a lock icon in the update list.
+  - Package locks are stored persistently and remain active across
+    update checks, application restarts, and new package versions.
+  - Locks are maintained independently for each managed server.
+  - Locked packages remain visible so administrators can still see that
+    an update is available.
+  - Package locks can be removed explicitly from the update interface.
+- Added package-lock support for both normal available updates and
+  packages reported as held back by APT.
+- Added backend API endpoints for retrieving, creating, and removing
+  persistent package locks.
+
+### Changed
+
+- Normal update selection now automatically excludes locked packages.
+- Locked packages cannot be selected for manual package installation
+  until their lock is removed.
+- `Install All` excludes all packages locked for the target server.
+- Scheduled `INSTALL_ALL` tasks exclude all packages locked for the
+  target server.
+- Held-package installation also respects persistent PatchForge package
+  locks.
+- Update snapshots now expose the lock state of packages to the
+  frontend.
+- Package locks are kept separately from update snapshots so refreshing
+  or replacing an update snapshot does not remove an administrator's
+  package exclusions.
+
+### Safety
+
+- Package locks are enforced by the backend rather than only by the
+  frontend.
+- A locked package cannot be installed through the normal selected
+  update installation API.
+- A locked package cannot be installed through `Install All`.
+- A locked package cannot be installed by a scheduled `INSTALL_ALL`
+  task.
+- A locked held-back package cannot be explicitly installed through the
+  held-package installation workflow until its PatchForge lock is
+  removed.
+- PatchForge package locks are independent from APT's own held-package
+  state. APT-held packages continue to use the separate held-package
+  safety workflow introduced in version 1.1.0.
+
 ## [1.2.0]
 
 ### Added
