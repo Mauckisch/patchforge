@@ -428,6 +428,7 @@ export interface UpdateSnapshot {
     name: string;
     installed_version: string;
     available_version: string;
+    locked: boolean;
   }[];
 
   held_updates: {
@@ -435,6 +436,7 @@ export interface UpdateSnapshot {
     installed_version: string;
     available_version: string;
     held: true;
+    locked: boolean;
   }[];
 }
 
@@ -462,6 +464,40 @@ export function installHeldUpdates(
       body: JSON.stringify({
         packages
       })
+    }
+  );
+}
+
+
+export function lockUpdatePackage(
+  serverId: number,
+  packageName: string
+): Promise<{
+  server_id: number;
+  package_name: string;
+  locked: boolean;
+}> {
+  return request(
+    `/api/servers/${serverId}/updates/locks/${encodeURIComponent(packageName)}`,
+    {
+      method: "POST"
+    }
+  );
+}
+
+
+export function unlockUpdatePackage(
+  serverId: number,
+  packageName: string
+): Promise<{
+  server_id: number;
+  package_name: string;
+  locked: boolean;
+}> {
+  return request(
+    `/api/servers/${serverId}/updates/locks/${encodeURIComponent(packageName)}`,
+    {
+      method: "DELETE"
     }
   );
 }

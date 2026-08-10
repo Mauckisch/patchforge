@@ -25,7 +25,9 @@ import {
   installAllUpdates,
   installHeldUpdates,
   installSelectedUpdates,
+  lockUpdatePackage,
   privilegeCheck,
+  unlockUpdatePackage,
   runTaskNow,
   setServerCredentials,
   updateServer,
@@ -292,7 +294,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.2.0
+              for Linux · v1.3.0
             </div>
           </div>
         </div>
@@ -347,7 +349,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.2.0
+            PatchForge v1.3.0
           </div>
         </header>
 
@@ -1730,6 +1732,7 @@ function EditServerModal({
   const [username, setUsername] =
     useState(server.username);
 
+
   const [sshPassword, setSshPassword] =
     useState("");
 
@@ -1971,6 +1974,8 @@ function EditServerModal({
               }
             />
           </label>
+
+
 
           <div className="edit-divider form-full">
             Credentials
@@ -2445,11 +2450,20 @@ function UpdateModal({
           snapshot.updates
       });
 
+      setHeldUpdates(
+        snapshot.held_updates
+      );
+
       setSelected(
-        snapshot.updates.map(
-          (update) =>
-            update.name
-        )
+        snapshot.updates
+          .filter(
+            (update) =>
+              !update.locked
+          )
+          .map(
+            (update) =>
+              update.name
+          )
       );
 
       setUpdatesCheckedAt(
@@ -2465,6 +2479,56 @@ function UpdateModal({
 
     } finally {
       setSnapshotLoaded(true);
+    }
+  }
+
+
+  async function togglePackageLock(
+    update: PackageUpdate
+  ) {
+    setBusy(true);
+
+    try {
+      if (update.locked) {
+        await unlockUpdatePackage(
+          server.id,
+          update.name
+        );
+      } else {
+        await lockUpdatePackage(
+          server.id,
+          update.name
+        );
+      }
+
+      setSelected(
+        (current) =>
+          current.filter(
+            (packageName) =>
+              packageName !== update.name
+          )
+      );
+
+      setSelectedHeld(
+        (current) =>
+          current.filter(
+            (packageName) =>
+              packageName !== update.name
+          )
+      );
+
+      await loadSnapshot();
+      await onChanged();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to change package lock"
+      );
+
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -2495,10 +2559,15 @@ function UpdateModal({
       );
 
       setSelected(
-        updateResult.updates.map(
-          (update) =>
-            update.name
-        )
+        updateResult.updates
+          .filter(
+            (update) =>
+              !update.locked
+          )
+          .map(
+            (update) =>
+              update.name
+          )
       );
 
       await onChanged();
@@ -2780,73 +2849,94 @@ function UpdateModal({
               </small>
             </div>
 
-            <div className="table-wrap update-table held-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Status</th>
-                    <th>Package</th>
-                    <th>Installed</th>
-                    <th>Available</th>
-                  </tr>
-                </thead>
+              <div className="table-wrap update-table held-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th />
+                      <th>Lock</th>
+                      <th>Status</th>
+                      <th>Package</th>
+                      <th>Installed</th>
+                      <th>Available</th>
+                    </tr>
+                  </thead>
 
-                <tbody>
-                  {heldUpdates.map(
-                    (update) => (
-                      <tr key={update.name}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={
-                              selectedHeld.includes(
-                                update.name
-                              )
-                            }
-                            onChange={() =>
-                              setSelectedHeld(
-                                (current) =>
-                                  current.includes(
-                                    update.name
-                                  )
-                                    ? current.filter(
-                                        (item) =>
-                                          item !==
+                  <tbody>
+                    {heldUpdates.map(
+                      (update) => (
+                        <tr key={update.name}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              disabled={
+                                busy ||
+                                Boolean(update.locked)
+                              }
+                              checked={
+                                !update.locked &&
+                                selectedHeld.includes(
+                                  update.name
+                                )
+                              }
+                              onChange={() =>
+                                setSelectedHeld(
+                                  (current) =>
+                                    current.includes(
+                                      update.name
+                                    )
+                                      ? current.filter(
+                                          (item) =>
+                                            item !== update.name
+                                        )
+                                      : [
+                                          ...current,
                                           update.name
-                                      )
-                                    : [
-                                        ...current,
-                                        update.name
-                                      ]
-                              )
-                            }
-                          />
-                        </td>
+                                        ]
+                                )
+                              }
+                            />
+                          </td>
 
-                        <td>
-                          <span className="badge warning">
-                            HELD
-                          </span>
-                        </td>
+                          <td>
+                            <button
+                              type="button"
+                              className={
+                                update.locked
+                                  ? "package-lock locked"
+                                  : "package-lock"
+                              }
+                              disabled={busy}
+                              title={
+                                update.locked
+                                  ? "Unlock package"
+                                  : "Lock package"
+                              }
+                              onClick={() =>
+                                void togglePackageLock(
+                                  update
+                                )
+                              }
+                            >
+                              {update.locked ? "🔒" : "🔓"}
+                            </button>
+                          </td>
 
-                        <td>
-                          {update.name}
-                        </td>
+                          <td>
+                            <span className="badge warning">
+                              HELD
+                            </span>
+                          </td>
 
-                        <td>
-                          {update.installed_version}
-                        </td>
-
-                        <td>
-                          {update.available_version}
-                        </td>
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          <td>{update.name}</td>
+                          <td>{update.installed_version}</td>
+                          <td>{update.available_version}</td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
               <div className="held-install-actions">
                 <button
@@ -2921,65 +3011,87 @@ Proceed with installation?`
             </span>
           </div>
         ) : result.updates.length ? (
-          <div className="table-wrap update-table">
-            <table>
-              <thead>
-                <tr>
-                  <th />
-                  <th>Package</th>
-                  <th>Installed</th>
-                  <th>Available</th>
-                </tr>
-              </thead>
+            <div className="table-wrap update-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Lock</th>
+                    <th>Package</th>
+                    <th>Installed</th>
+                    <th>Available</th>
+                  </tr>
+                </thead>
 
-              <tbody>
-                {result.updates.map(
-                  (update) => (
-                    <tr key={update.name}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={
-                            selected.includes(
-                              update.name
-                            )
-                          }
-                          onChange={() =>
-                            setSelected(
-                              (current) =>
-                                current.includes(
-                                  update.name
-                                )
-                                  ? current.filter(
-                                      (item) =>
-                                        item !== update.name
-                                    )
-                                  : [
-                                      ...current,
-                                      update.name
-                                    ]
-                            )
-                          }
-                        />
-                      </td>
+                <tbody>
+                  {result.updates.map(
+                    (update) => (
+                      <tr key={update.name}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            disabled={
+                              busy ||
+                              Boolean(update.locked)
+                            }
+                            checked={
+                              !update.locked &&
+                              selected.includes(
+                                update.name
+                              )
+                            }
+                            onChange={() =>
+                              setSelected(
+                                (current) =>
+                                  current.includes(
+                                    update.name
+                                  )
+                                    ? current.filter(
+                                        (item) =>
+                                          item !== update.name
+                                      )
+                                    : [
+                                        ...current,
+                                        update.name
+                                      ]
+                              )
+                            }
+                          />
+                        </td>
 
-                      <td>
-                        {update.name}
-                      </td>
+                        <td>
+                          <button
+                            type="button"
+                            className={
+                              update.locked
+                                ? "package-lock locked"
+                                : "package-lock"
+                            }
+                            disabled={busy}
+                            title={
+                              update.locked
+                                ? "Unlock package"
+                                : "Lock package"
+                            }
+                            onClick={() =>
+                              void togglePackageLock(
+                                update
+                              )
+                            }
+                          >
+                            {update.locked ? "🔒" : "🔓"}
+                          </button>
+                        </td>
 
-                      <td>
-                        {update.installed_version}
-                      </td>
-
-                      <td>
-                        {update.available_version}
-                      </td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
+                        <td>{update.name}</td>
+                        <td>{update.installed_version}</td>
+                        <td>{update.available_version}</td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
         ) : (
           <div className="empty">
             System is up to date.

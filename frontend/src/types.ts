@@ -67,6 +67,7 @@ export interface PackageUpdate {
   installed_version: string;
   available_version: string;
   held?: boolean;
+  locked?: boolean;
 }
 
 export interface UpdateResult {

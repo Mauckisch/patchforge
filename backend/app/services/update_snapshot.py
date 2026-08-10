@@ -14,6 +14,7 @@ def replace_update_snapshot(
     server: Server,
     updates: list[dict],
     held_updates: list[dict] | None = None,
+    locked_packages: set[str] | None = None,
 ) -> None:
     db.execute(
         delete(ServerUpdate).where(
@@ -24,9 +25,8 @@ def replace_update_snapshot(
 
     checked_at = datetime.utcnow()
 
-    held_updates = (
-        held_updates or []
-    )
+    held_updates = held_updates or []
+    locked_packages = locked_packages or set()
 
     for update in updates:
         db.add(
@@ -34,14 +34,10 @@ def replace_update_snapshot(
                 server_id=server.id,
                 name=update["name"],
                 installed_version=(
-                    update[
-                        "installed_version"
-                    ]
+                    update["installed_version"]
                 ),
                 available_version=(
-                    update[
-                        "available_version"
-                    ]
+                    update["available_version"]
                 ),
                 held=False,
                 checked_at=checked_at,
@@ -54,29 +50,25 @@ def replace_update_snapshot(
                 server_id=server.id,
                 name=update["name"],
                 installed_version=(
-                    update[
-                        "installed_version"
-                    ]
+                    update["installed_version"]
                 ),
                 available_version=(
-                    update[
-                        "available_version"
-                    ]
+                    update["available_version"]
                 ),
                 held=True,
                 checked_at=checked_at,
             )
         )
 
-    # Only genuinely installable updates
-    # count toward the normal update total.
-    server.updates_available = len(
-        updates
+    # Locked and held packages do not count as
+    # normal actionable updates.
+    server.updates_available = sum(
+        1
+        for update in updates
+        if update["name"] not in locked_packages
     )
 
-    server.updates_checked_at = (
-        checked_at
-    )
+    server.updates_checked_at = checked_at
 
 
 def get_update_snapshot(

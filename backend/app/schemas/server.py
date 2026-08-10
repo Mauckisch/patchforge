@@ -76,7 +76,6 @@ class ServerResponse(BaseModel):
 
     connection_status: str
     updates_available: int
-
     last_seen_at: datetime | None
     updates_checked_at: datetime | None
     last_check_at: datetime | None

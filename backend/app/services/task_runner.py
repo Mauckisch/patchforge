@@ -16,6 +16,10 @@ from app.services.history import (
     STATUS_SUCCESS,
     create_history_entry,
 )
+from app.services.update_locks import (
+    filter_unlocked_updates,
+    get_locked_package_names,
+)
 from app.services.privilege import (
     _open_transport,
     detect_privilege_method,
@@ -120,6 +124,7 @@ def _run_for_server(
     task: ScheduledTask,
     server: Server,
 ) -> None:
+
     (
         configured_method,
         ssh_password,
@@ -189,6 +194,20 @@ def _run_for_server(
 
             updates = updater.list_updates(
                 transport
+            )
+
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            updates = (
+                filter_unlocked_updates(
+                    updates,
+                    locked_packages,
+                )
             )
 
             installed_count = 0

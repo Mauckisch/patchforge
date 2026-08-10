@@ -31,6 +31,13 @@ from app.services.update_snapshot import (
     get_update_snapshot,
     replace_update_snapshot,
 )
+from app.services.update_locks import (
+    filter_unlocked_updates,
+    get_locked_package_names,
+    lock_package,
+    unlock_package,
+    update_server_actionable_count,
+)
 
 
 router = APIRouter(
@@ -282,11 +289,38 @@ def check_updates(
             reboot_status["reboot_required"]
         )
 
+        locked_packages = (
+            get_locked_package_names(
+                db,
+                server.id,
+            )
+        )
+
+        unlocked_updates = (
+            filter_unlocked_updates(
+                updates,
+                locked_packages,
+            )
+        )
+
+        for update in updates:
+            update["locked"] = (
+                update["name"]
+                in locked_packages
+            )
+
+        for update in held_updates:
+            update["locked"] = (
+                update["name"]
+                in locked_packages
+            )
+
         replace_update_snapshot(
             db,
             server,
             updates,
             held_updates,
+            locked_packages,
         )
 
         mark_online(server)
@@ -299,9 +333,11 @@ def check_updates(
             server=server,
             action=ACTION_CHECK,
             status=STATUS_SUCCESS,
-            package_count=len(updates),
+            package_count=len(unlocked_updates),
             reboot_required=server.reboot_required,
-            message=f"{len(updates)} update(s) available",
+            message=(
+                f"{len(unlocked_updates)} update(s) available"
+            ),
         )
 
         return {
@@ -309,7 +345,7 @@ def check_updates(
             "server": server.name,
             "system_hostname": server.system_hostname,
             "package_manager": server.package_manager,
-            "updates_available": len(updates),
+            "updates_available": len(unlocked_updates),
             "held_updates_available": len(held_updates),
             "reboot_required": server.reboot_required,
             "updates": updates,
@@ -363,6 +399,25 @@ def install_selected_updates(
             available_updates = updater.list_updates(
                 transport
             )
+
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            requested_locked = [
+                package
+                for package in payload.packages
+                if package in locked_packages
+            ]
+
+            if requested_locked:
+                raise UpdaterError(
+                    "Locked package(s) cannot be installed: "
+                    + ", ".join(requested_locked)
+                )
 
             validated_packages = (
                 updater.validate_requested_packages(
@@ -463,6 +518,20 @@ def install_all_updates(
 
             available_updates = updater.list_updates(
                 transport
+            )
+
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            available_updates = (
+                filter_unlocked_updates(
+                    available_updates,
+                    locked_packages,
+                )
             )
 
             if not available_updates:
@@ -766,6 +835,25 @@ def install_selected_held_updates(
                 for update in held_updates
             }
 
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            requested_locked = [
+                package
+                for package in payload.packages
+                if package in locked_packages
+            ]
+
+            if requested_locked:
+                raise UpdaterError(
+                    "Locked package(s) cannot be installed: "
+                    + ", ".join(requested_locked)
+                )
+
             validated_packages: list[str] = []
 
             for package in payload.packages:
@@ -891,6 +979,119 @@ def install_selected_held_updates(
 
 
 @router.get(
+    "/{server_id}/updates/locks",
+)
+def get_update_locks(
+    server_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    server = _get_server(
+        server_id,
+        db,
+    )
+
+    locked_packages = sorted(
+        get_locked_package_names(
+            db,
+            server.id,
+        )
+    )
+
+    return {
+        "server_id": server.id,
+        "locked_packages": locked_packages,
+    }
+
+
+@router.post(
+    "/{server_id}/updates/locks/{package_name}",
+)
+def add_update_lock(
+    server_id: int,
+    package_name: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    server = _get_server(
+        server_id,
+        db,
+    )
+
+    package_name = package_name.strip()
+
+    if not package_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Package name must not be empty",
+        )
+
+    lock_package(
+        db,
+        server.id,
+        package_name,
+    )
+
+    update_server_actionable_count(
+        db,
+        server,
+    )
+
+    db.commit()
+    db.refresh(server)
+
+    return {
+        "server_id": server.id,
+        "package_name": package_name,
+        "locked": True,
+        "updates_available":
+            server.updates_available,
+    }
+
+
+@router.delete(
+    "/{server_id}/updates/locks/{package_name}",
+)
+def remove_update_lock(
+    server_id: int,
+    package_name: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    server = _get_server(
+        server_id,
+        db,
+    )
+
+    package_name = package_name.strip()
+
+    if not package_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Package name must not be empty",
+        )
+
+    unlock_package(
+        db,
+        server.id,
+        package_name,
+    )
+
+    update_server_actionable_count(
+        db,
+        server,
+    )
+
+    db.commit()
+    db.refresh(server)
+
+    return {
+        "server_id": server.id,
+        "package_name": package_name,
+        "locked": False,
+        "updates_available":
+            server.updates_available,
+    }
+
+
+@router.get(
     "/{server_id}/updates/snapshot",
 )
 def get_saved_update_snapshot(
@@ -913,11 +1114,21 @@ def get_saved_update_snapshot(
         server.id,
     )
 
+    locked_packages = (
+        get_locked_package_names(
+            db,
+            server.id,
+        )
+    )
+
     updates = [
         {
             "name": update.name,
             "installed_version": update.installed_version,
             "available_version": update.available_version,
+            "locked": (
+                update.name in locked_packages
+            ),
         }
         for update in saved_updates
         if not update.held
@@ -929,6 +1140,9 @@ def get_saved_update_snapshot(
             "installed_version": update.installed_version,
             "available_version": update.available_version,
             "held": True,
+            "locked": (
+                update.name in locked_packages
+            ),
         }
         for update in saved_updates
         if update.held
@@ -941,7 +1155,11 @@ def get_saved_update_snapshot(
         "package_manager": server.package_manager,
 
         # Normal/installable updates only.
-        "updates_available": len(updates),
+        "updates_available": sum(
+            1
+            for update in updates
+            if not update["locked"]
+        ),
 
         # Informational only.
         "held_updates_available": len(held_updates),
