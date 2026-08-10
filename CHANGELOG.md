@@ -5,6 +5,19 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.4.1]
+
+### Fixed
+
+- Fixed manual Run Now execution for disabled scheduled tasks.
+- Multi-server tasks now continue processing remaining servers when an individual target is unreachable or fails.
+- Scheduled and manually triggered update checks now persist available update, cleanup, and reboot status to the server overview.
+- Scheduled and manually triggered Install All and Cleanup tasks now refresh and persist the resulting package state.
+- Improved server availability detection by combining SSH connectivity with ICMP ping checks.
+- Servers are now reported as Offline when both SSH and ping fail.
+- Servers are reported as Error when the host responds to ping but SSH fails.
+- Servers remain Online when SSH works even if ICMP ping is blocked.
+
 ## [1.4.0]
 
 ### Added

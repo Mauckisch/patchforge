@@ -445,7 +445,8 @@ def run_task_now(
         )
 
     run_scheduled_task(
-        task.id
+        task.id,
+        force=True,
     )
 
     db.expire_all()

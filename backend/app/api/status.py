@@ -1,6 +1,5 @@
-import socket
+import subprocess
 
-import paramiko
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,9 +8,12 @@ from app.core.credentials import decrypt_secret
 from app.core.dependencies import get_db
 from app.models.credential import ServerCredential
 from app.models.server import Server
+from app.services.discovery import (
+    AuthenticationError,
+    DiscoveryError,
+)
 from app.services.privilege import _open_transport
 from app.services.server_status import (
-    mark_auth_failed,
     mark_error,
     mark_online,
     mark_unreachable,
@@ -22,6 +24,35 @@ router = APIRouter(
     prefix="/api/servers",
     tags=["status"],
 )
+
+
+def _ping_host(
+    host: str,
+) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                "ping",
+                "-c",
+                "1",
+                "-W",
+                "2",
+                host,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            check=False,
+        )
+
+        return result.returncode == 0
+
+    except (
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+        OSError,
+    ):
+        return False
 
 
 def _check_server(
@@ -55,6 +86,10 @@ def _check_server(
         credential.ssh_password_ciphertext,
     )
 
+    ping_reachable = _ping_host(
+        server.host
+    )
+
     transport = None
 
     try:
@@ -65,32 +100,48 @@ def _check_server(
             password=ssh_password,
         )
 
+        # SSH is the authoritative PatchForge
+        # connectivity check. A host remains ONLINE
+        # even when ICMP/ping is blocked.
         mark_online(
             server
         )
 
-    except paramiko.AuthenticationException as exc:
-        mark_auth_failed(
-            server,
-            "SSH authentication failed",
-        )
+    except AuthenticationError:
+        if ping_reachable:
+            mark_error(
+                server,
+                "Host reachable, but SSH authentication failed",
+            )
+        else:
+            mark_unreachable(
+                server,
+                "Ping failed and SSH authentication failed",
+            )
 
-    except (
-        socket.timeout,
-        TimeoutError,
-        ConnectionRefusedError,
-        OSError,
-    ) as exc:
-        mark_unreachable(
-            server,
-            str(exc),
-        )
+    except DiscoveryError as exc:
+        if ping_reachable:
+            mark_error(
+                server,
+                str(exc),
+            )
+        else:
+            mark_unreachable(
+                server,
+                str(exc),
+            )
 
     except Exception as exc:
-        mark_error(
-            server,
-            str(exc),
-        )
+        if ping_reachable:
+            mark_error(
+                server,
+                str(exc),
+            )
+        else:
+            mark_unreachable(
+                server,
+                str(exc),
+            )
 
     finally:
         if transport is not None:

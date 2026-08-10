@@ -164,8 +164,22 @@ def _run_for_server(
                 transport
             )
 
+            cleanup_available = (
+                updater.cleanup_available(
+                    transport
+                )
+            )
+
             reboot_status = updater.get_reboot_status(
                 transport
+            )
+
+            server.updates_available = len(
+                updates
+            )
+
+            server.cleanup_available = (
+                cleanup_available
             )
 
             server.reboot_required = (
@@ -236,8 +250,42 @@ def _run_for_server(
                     validated
                 )
 
+            remaining_updates = (
+                updater.list_updates(
+                    transport
+                )
+            )
+
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            remaining_updates = (
+                filter_unlocked_updates(
+                    remaining_updates,
+                    locked_packages,
+                )
+            )
+
+            cleanup_available = (
+                updater.cleanup_available(
+                    transport
+                )
+            )
+
             reboot_status = updater.get_reboot_status(
                 transport
+            )
+
+            server.updates_available = len(
+                remaining_updates
+            )
+
+            server.cleanup_available = (
+                cleanup_available
             )
 
             server.reboot_required = (
@@ -264,8 +312,42 @@ def _run_for_server(
                 privilege_password,
             )
 
+            remaining_updates = (
+                updater.list_updates(
+                    transport
+                )
+            )
+
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            remaining_updates = (
+                filter_unlocked_updates(
+                    remaining_updates,
+                    locked_packages,
+                )
+            )
+
+            cleanup_available = (
+                updater.cleanup_available(
+                    transport
+                )
+            )
+
             reboot_status = updater.get_reboot_status(
                 transport
+            )
+
+            server.updates_available = len(
+                remaining_updates
+            )
+
+            server.cleanup_available = (
+                cleanup_available
             )
 
             server.reboot_required = (
@@ -312,6 +394,7 @@ def _run_for_server(
 
 def run_scheduled_task(
     task_id: int,
+    force: bool = False,
 ) -> None:
     db = SessionLocal()
 
@@ -321,7 +404,10 @@ def run_scheduled_task(
             task_id,
         )
 
-        if task is None or not task.enabled:
+        if task is None:
+            return
+
+        if not task.enabled and not force:
             return
 
         target_ids = _get_target_ids(
