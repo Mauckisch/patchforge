@@ -1,0 +1,54 @@
+# ------------------------------------------------------------
+# PatchForge for Linux
+# Local development / runtime files
+# ------------------------------------------------------------
+
+# Local development compose
+docker-compose.dev.yml
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secret.key
+
+# Runtime database/data
+data/*
+!data/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~

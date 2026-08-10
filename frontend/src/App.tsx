@@ -1,0 +1,3018 @@
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState
+} from "react";
+
+import {
+  checkAllServerStatus,
+  checkUpdates,
+  cleanupServer,
+  clearHistory,
+  createServer,
+  createTask,
+  deleteServer,
+  deleteTask,
+  discoverServer,
+  getCredentialStatus,
+  getHistory,
+  getRebootStatus,
+  getServers,
+  getSettings,
+  getTasks,
+  installAllUpdates,
+  installSelectedUpdates,
+  privilegeCheck,
+  runTaskNow,
+  setServerCredentials,
+  updateServer,
+  updateSettings,
+  updateTask
+} from "./api";
+
+import type {
+  HistoryEntry,
+  RebootStatus,
+  ScheduledTask,
+  Server,
+  UpdateResult
+} from "./types";
+
+
+type Page =
+  | "dashboard"
+  | "servers"
+  | "tasks"
+  | "history";
+
+
+const GITHUB_URL =
+  "https://github.com/Mauckisch/patchforge";
+
+
+function formatDate(
+  value: string | null
+): string {
+  if (!value) {
+    return "Never";
+  }
+
+  return new Intl.DateTimeFormat(
+    undefined,
+    {
+      dateStyle: "short",
+      timeStyle: "short"
+    }
+  ).format(
+    new Date(`${value}Z`)
+  );
+}
+
+
+function getTimezones(): string[] {
+  try {
+    return Intl.supportedValuesOf(
+      "timeZone"
+    );
+  } catch {
+    return [
+      "UTC",
+      "Europe/Berlin"
+    ];
+  }
+}
+
+
+function App() {
+  const [page, setPage] =
+    useState<Page>("dashboard");
+
+  const [servers, setServers] =
+    useState<Server[]>([]);
+
+  const [tasks, setTasks] =
+    useState<ScheduledTask[]>([]);
+
+  const [history, setHistory] =
+    useState<HistoryEntry[]>([]);
+
+  const [
+    historyRetentionDays,
+    setHistoryRetentionDays
+  ] = useState<number | null>(7);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [deletingServer, setDeletingServer] =
+    useState<Server | null>(null);
+
+  const [showAddServer, setShowAddServer] =
+    useState(false);
+
+  const [updateServer, setUpdateServer] =
+    useState<Server | null>(null);
+
+  const [editingServer, setEditingServer] =
+    useState<Server | null>(null);
+
+  const [showAddTask, setShowAddTask] =
+    useState(false);
+
+  const [taskTimezone, setTaskTimezone] =
+    useState<string>(() => {
+      const saved = localStorage.getItem(
+        "patchforge-task-timezone"
+      );
+
+      if (saved) {
+        return saved;
+      }
+
+      return (
+        Intl.DateTimeFormat()
+          .resolvedOptions()
+          .timeZone
+        || "UTC"
+      );
+    });
+
+  const [editingTask, setEditingTask] =
+    useState<ScheduledTask | null>(null);
+
+
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [
+        serverData,
+        taskData,
+        historyData
+      ] = await Promise.all([
+        getServers(),
+        getTasks(),
+        getHistory()
+      ]);
+
+      setServers(serverData);
+      setTasks(taskData);
+      setHistory(historyData);
+
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load PatchForge data"
+      );
+
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  useEffect(() => {
+    void loadData();
+  }, []);
+
+
+  const rebootCount = useMemo(
+    () =>
+      servers.filter(
+        (server) =>
+          server.reboot_required
+      ).length,
+    [servers]
+  );
+
+
+  const enabledTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) =>
+          task.enabled
+      ).length,
+    [tasks]
+  );
+
+  const onlineCount = useMemo(
+    () =>
+      servers.filter(
+        (server) =>
+          server.connection_status === "ONLINE"
+      ).length,
+    [servers]
+  );
+
+  const availableUpdates = useMemo(
+    () =>
+      servers.reduce(
+        (total, server) =>
+          total + server.updates_available,
+        0
+      ),
+    [servers]
+  );
+
+
+  async function confirmDeleteServer() {
+    if (!deletingServer) {
+      return;
+    }
+
+    try {
+      await deleteServer(
+        deletingServer.id
+      );
+
+      setDeletingServer(null);
+
+      await loadData();
+
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete server"
+      );
+    }
+  }
+
+
+  function pageTitle(): string {
+    switch (page) {
+      case "servers":
+        return "Servers";
+
+      case "tasks":
+        return "Tasks";
+
+      case "history":
+        return "History";
+
+      default:
+        return "Dashboard";
+    }
+  }
+
+
+  return (
+    <div className="layout">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">
+            P
+          </div>
+
+          <div>
+            <div className="brand-title">
+              PatchForge
+            </div>
+
+            <div className="brand-version">
+              for Linux · v1.0.0
+            </div>
+          </div>
+        </div>
+
+        <nav className="nav">
+          {[
+            ["dashboard", "Dashboard"],
+            ["servers", "Servers"],
+            ["tasks", "Tasks"],
+            ["history", "History"]
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              className={
+                `nav-button ${
+                  page === key
+                    ? "active"
+                    : ""
+                }`
+              }
+              onClick={() =>
+                setPage(key as Page)
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <a
+            className="github-link"
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub · Mauckisch/patchforge
+          </a>
+        </div>
+      </aside>
+
+      <main className="main">
+        <header className="page-header">
+          <div>
+            <h1 className="page-title">
+              {pageTitle()}
+            </h1>
+
+            <p className="page-subtitle">
+              Linux update management
+            </p>
+          </div>
+
+          <div className="status-pill">
+            PatchForge v1.0.0
+          </div>
+        </header>
+
+        {error && (
+          <div className="error-box">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="loading">
+            Loading PatchForge…
+          </div>
+        ) : (
+          <>
+            {page === "dashboard" && (
+              <Dashboard
+                servers={servers}
+                tasks={tasks}
+                history={history}
+                rebootCount={rebootCount}
+                enabledTasks={enabledTasks}
+                onlineCount={onlineCount}
+                availableUpdates={availableUpdates}
+                onRefreshStatus={async () => {
+                  try {
+                    await checkAllServerStatus();
+                    await loadData();
+
+                  } catch (err) {
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Unable to check server status"
+                    );
+                  }
+                }}
+                onOpenServers={() =>
+                  setPage("servers")
+                }
+              />
+            )}
+
+            {page === "servers" && (
+              <ServerPanel
+                servers={servers}
+                onUpdates={setUpdateServer}
+                onEdit={setEditingServer}
+                onDelete={setDeletingServer}
+                onAdd={() =>
+                  setShowAddServer(true)
+                }
+              />
+            )}
+
+            {page === "tasks" && (
+              <TasksPanel
+                tasks={tasks}
+                servers={servers}
+                onAdd={() =>
+                  setShowAddTask(true)
+                }
+                onChanged={loadData}
+                onError={setError}
+                onEdit={setEditingTask}
+                taskTimezone={taskTimezone}
+                onTaskTimezoneChange={(timezone) => {
+                  setTaskTimezone(timezone);
+
+                  localStorage.setItem(
+                    "patchforge-task-timezone",
+                    timezone
+                  );
+                }}
+              />
+            )}
+
+            {page === "history" && (
+              <HistoryPanel
+                history={history}
+                allowClear={true}
+                retentionDays={historyRetentionDays}
+                onRetentionChange={async (days) => {
+                  try {
+                    const result =
+                      await updateSettings(days);
+
+                    setHistoryRetentionDays(
+                      result.history_retention_days
+                    );
+
+                    await loadData();
+
+                  } catch (err) {
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Unable to update history retention"
+                    );
+                  }
+                }}
+                onClear={async () => {
+                  if (!window.confirm(
+                    "Delete the complete PatchForge history? This cannot be undone."
+                  )) {
+                    return;
+                  }
+
+                  try {
+                    await clearHistory();
+                    await loadData();
+
+                  } catch (err) {
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Unable to clear history"
+                    );
+                  }
+                }}
+              />
+            )}
+          </>
+        )}
+      </main>
+
+      {deletingServer && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h2>
+              Delete server?
+            </h2>
+
+            <p>
+              You are about to remove{" "}
+              <strong>
+                {deletingServer.name}
+              </strong>
+              .
+            </p>
+
+            <div className="modal-server">
+              {deletingServer.host}
+            </div>
+
+            <p className="modal-note">
+              Stored credentials, SSH host key and scheduled
+              tasks for this server will be removed.
+              History entries will be kept.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                className="button"
+                onClick={() =>
+                  setDeletingServer(null)
+                }
+              >
+                Cancel
+              </button>
+
+              <button
+                className="button danger"
+                onClick={() =>
+                  void confirmDeleteServer()
+                }
+              >
+                Delete Server
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddServer && (
+        <AddServerModal
+          onClose={() =>
+            setShowAddServer(false)
+          }
+          onCreated={async () => {
+            setShowAddServer(false);
+            await loadData();
+          }}
+          onError={setError}
+        />
+      )}
+
+      {updateServer && (
+        <UpdateModal
+          server={updateServer}
+          onClose={() =>
+            setUpdateServer(null)
+          }
+          onChanged={loadData}
+          onError={setError}
+        />
+      )}
+
+      {editingServer && (
+        <EditServerModal
+          server={editingServer}
+          onClose={() =>
+            setEditingServer(null)
+          }
+          onSaved={async () => {
+            setEditingServer(null);
+            await loadData();
+          }}
+          onError={setError}
+        />
+      )}
+
+      {showAddTask && (
+        <AddTaskModal
+          servers={servers}
+          defaultTimezone={taskTimezone}
+          onClose={() =>
+            setShowAddTask(false)
+          }
+          onCreated={async () => {
+            setShowAddTask(false);
+            await loadData();
+          }}
+          onError={setError}
+        />
+      )}
+
+
+      {editingTask && (
+        <AddTaskModal
+          servers={servers}
+          task={editingTask}
+          defaultTimezone={taskTimezone}
+          onClose={() =>
+            setEditingTask(null)
+          }
+          onCreated={async () => {
+            setEditingTask(null);
+            await loadData();
+          }}
+          onError={setError}
+        />
+      )}
+    </div>
+  );
+}
+
+
+function Dashboard({
+  servers,
+  history,
+  rebootCount,
+  enabledTasks,
+  onlineCount,
+  availableUpdates,
+  onRefreshStatus,
+  onOpenServers
+}: {
+  servers: Server[];
+  tasks: ScheduledTask[];
+  history: HistoryEntry[];
+  rebootCount: number;
+  enabledTasks: number;
+  onlineCount: number;
+  availableUpdates: number;
+  onRefreshStatus: () => Promise<void>;
+  onOpenServers: () => void;
+}) {
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+
+  async function refreshStatus() {
+    setRefreshing(true);
+
+    try {
+      await onRefreshStatus();
+
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+
+  return (
+    <>
+      <section className="stats dashboard-stats">
+        <div className="stat-card">
+          <div className="stat-label">
+            Servers
+          </div>
+
+          <div className="stat-value">
+            {servers.length}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-label">
+            Online
+          </div>
+
+          <div className="stat-value">
+            {onlineCount}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-label">
+            Updates available
+          </div>
+
+          <div
+            className={
+              `stat-value ${
+                availableUpdates > 0
+                  ? "warning"
+                  : ""
+              }`
+            }
+          >
+            {availableUpdates}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-label">
+            Reboot required
+          </div>
+
+          <div
+            className={
+              `stat-value ${
+                rebootCount > 0
+                  ? "warning"
+                  : ""
+              }`
+            }
+          >
+            {rebootCount}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-label">
+            Scheduled tasks
+          </div>
+
+          <div className="stat-value">
+            {enabledTasks}
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2 className="panel-title">
+            Server Status
+          </h2>
+
+          <div className="dashboard-actions">
+            <button
+              className="button"
+              disabled={refreshing}
+              onClick={() =>
+                void refreshStatus()
+              }
+            >
+              {refreshing
+                ? "Checking…"
+                : "Refresh Status"}
+            </button>
+
+            <button
+              className="button"
+              onClick={onOpenServers}
+            >
+              Manage Servers
+            </button>
+          </div>
+        </div>
+
+        {servers.length === 0 ? (
+          <div className="empty">
+            No servers configured.
+          </div>
+        ) : (
+          <div className="dashboard-server-list">
+            {servers.map(
+              (server) => (
+                <div
+                  className="dashboard-server-row dashboard-server-row-wide"
+                  key={server.id}
+                >
+                  <div>
+                    <strong>
+                      {server.name}
+                    </strong>
+
+                    <div className="server-host">
+                      {server.host}
+                    </div>
+                  </div>
+
+                  <span
+                    className={
+                      server.connection_status === "ONLINE"
+                        ? "badge ok"
+                        : server.connection_status === "UNKNOWN"
+                          ? "badge neutral"
+                          : "badge danger"
+                    }
+                  >
+                    {server.connection_status}
+                  </span>
+
+                  <div className="dashboard-number">
+                    <strong>
+                      {server.updates_available}
+                    </strong>
+
+                    <span>
+                      updates
+                    </span>
+                  </div>
+
+                  <span
+                    className={
+                      server.reboot_required
+                        ? "badge warning"
+                        : "badge ok"
+                    }
+                  >
+                    {server.reboot_required
+                      ? "Reboot required"
+                      : "No reboot"}
+                  </span>
+
+                  <div className="dashboard-last-seen">
+                    <span>
+                      Last seen
+                    </span>
+
+                    <strong>
+                      {formatDate(
+                        server.last_seen_at
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        )}
+      </section>
+
+      <HistoryPanel
+        history={history.slice(0, 5)}
+      />
+    </>
+  );
+}
+
+function AddTaskModal({
+  servers,
+  task,
+  defaultTimezone,
+  onClose,
+  onCreated,
+  onError
+}: {
+  servers: Server[];
+  task?: ScheduledTask;
+  defaultTimezone: string;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const editing = Boolean(task);
+
+  const [name, setName] =
+    useState(
+      task?.name ?? ""
+    );
+
+  const [serverIds, setServerIds] =
+    useState<number[]>(
+      task?.server_ids
+      ?? (
+        servers.length
+          ? [servers[0].id]
+          : []
+      )
+    );
+
+  const [action, setAction] =
+    useState<
+      "CHECK" |
+      "INSTALL_ALL" |
+      "CLEANUP" |
+      "REBOOT_CHECK"
+    >(
+      (
+        task?.action
+        ?? "CHECK"
+      ) as
+        "CHECK" |
+        "INSTALL_ALL" |
+        "CLEANUP" |
+        "REBOOT_CHECK"
+    );
+
+  const [scheduleType, setScheduleType] =
+    useState<
+      "once" |
+      "daily" |
+      "weekly" |
+      "monthly"
+    >(
+      (
+        task?.schedule_type
+        ?? "daily"
+      ) as
+        "once" |
+        "daily" |
+        "weekly" |
+        "monthly"
+    );
+
+  const timezones = useMemo(
+    () =>
+      getTimezones(),
+    []
+  );
+
+  const [timezone, setTimezone] =
+    useState(
+      task?.timezone
+      ?? defaultTimezone
+    );
+
+  const [hour, setHour] =
+    useState(
+      task?.hour ?? 3
+    );
+
+  const [minute, setMinute] =
+    useState(
+      task?.minute ?? 0
+    );
+
+  const [weekday, setWeekday] =
+    useState(
+      task?.weekday ?? 0
+    );
+
+  const [dayOfMonth, setDayOfMonth] =
+    useState(
+      task?.day_of_month ?? 1
+    );
+
+  const [runAt, setRunAt] =
+    useState(
+      task?.run_at
+        ? task.run_at.slice(0, 16)
+        : ""
+    );
+
+  const [enabled, setEnabled] =
+    useState(
+      task?.enabled ?? true
+    );
+
+  const [saving, setSaving] =
+    useState(false);
+
+
+  function toggleServer(
+    serverId: number
+  ) {
+    setServerIds(
+      (current) =>
+        current.includes(serverId)
+          ? current.filter(
+              (id) =>
+                id !== serverId
+            )
+          : [
+              ...current,
+              serverId
+            ]
+    );
+  }
+
+
+  async function submit(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    if (serverIds.length === 0) {
+      onError(
+        "Select at least one target server"
+      );
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const payload = {
+        name,
+        server_ids: serverIds,
+        action,
+        schedule_type: scheduleType,
+        timezone,
+        enabled,
+        ...(scheduleType === "once"
+          ? {
+              run_at: runAt
+            }
+          : {
+              hour,
+              minute
+            }),
+        ...(scheduleType === "weekly"
+          ? {
+              weekday
+            }
+          : {}),
+        ...(scheduleType === "monthly"
+          ? {
+              day_of_month: dayOfMonth
+            }
+          : {})
+      };
+
+      if (task) {
+        await updateTask(
+          task.id,
+          payload
+        );
+
+      } else {
+        await createTask(
+          payload
+        );
+      }
+
+      await onCreated();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : (
+              editing
+                ? "Unable to update task"
+                : "Unable to create task"
+            )
+      );
+
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal modal-large">
+        <h2>
+          {editing
+            ? "Edit Task"
+            : "Add Task"}
+        </h2>
+
+        <form
+          className="form-grid"
+          onSubmit={(event) =>
+            void submit(event)
+          }
+        >
+          <label className="form-full">
+            <span>Name</span>
+
+            <input
+              required
+              value={name}
+              onChange={(event) =>
+                setName(
+                  event.target.value
+                )
+              }
+            />
+          </label>
+
+          <div className="form-full">
+            <span className="form-section-label">
+              Target Servers
+            </span>
+
+            <div className="target-list">
+              <label className="target-select-all">
+                <input
+                  type="checkbox"
+                  checked={
+                    servers.length > 0 &&
+                    serverIds.length === servers.length
+                  }
+                  onChange={(event) =>
+                    setServerIds(
+                      event.target.checked
+                        ? servers.map(
+                            (server) =>
+                              server.id
+                          )
+                        : []
+                    )
+                  }
+                />
+
+                <strong>
+                  Select All
+                </strong>
+              </label>
+
+              {servers.map(
+                (server) => (
+                  <label
+                    className="target-item"
+                    key={server.id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        serverIds.includes(
+                          server.id
+                        )
+                      }
+                      onChange={() =>
+                        toggleServer(
+                          server.id
+                        )
+                      }
+                    />
+
+                    <div>
+                      <strong>
+                        {server.name}
+                      </strong>
+
+                      <div className="server-host">
+                        {server.host}
+                      </div>
+                    </div>
+                  </label>
+                )
+              )}
+            </div>
+          </div>
+
+          <label>
+            <span>Action</span>
+
+            <select
+              value={action}
+              onChange={(event) =>
+                setAction(
+                  event.target.value as
+                    "CHECK" |
+                    "INSTALL_ALL" |
+                    "CLEANUP" |
+                    "REBOOT_CHECK"
+                )
+              }
+            >
+              <option value="CHECK">
+                Check Updates
+              </option>
+
+              <option value="INSTALL_ALL">
+                Install All Updates
+              </option>
+
+              <option value="CLEANUP">
+                Cleanup
+              </option>
+
+              <option value="REBOOT_CHECK">
+                Check Reboot Status
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>Schedule</span>
+
+            <select
+              value={scheduleType}
+              onChange={(event) =>
+                setScheduleType(
+                  event.target.value as
+                    "once" |
+                    "daily" |
+                    "weekly" |
+                    "monthly"
+                )
+              }
+            >
+              <option value="once">
+                Once
+              </option>
+
+              <option value="daily">
+                Daily
+              </option>
+
+              <option value="weekly">
+                Weekly
+              </option>
+
+              <option value="monthly">
+                Monthly
+              </option>
+            </select>
+          </label>
+
+          <label className="form-full">
+            <span>Timezone (override)</span>
+
+            <select
+              value={timezone}
+              onChange={(event) =>
+                setTimezone(
+                  event.target.value
+                )
+              }
+            >
+              {timezones.map(
+                (zone) => (
+                  <option
+                    key={zone}
+                    value={zone}
+                  >
+                    {zone}
+                  </option>
+                )
+              )}
+            </select>
+          </label>
+
+          {scheduleType === "once" && (
+            <label className="form-full">
+              <span>Run At</span>
+
+              <input
+                required
+                type="datetime-local"
+                value={runAt}
+                onChange={(event) =>
+                  setRunAt(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+          )}
+
+          {scheduleType !== "once" && (
+            <>
+              <label>
+                <span>Hour</span>
+
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="23"
+                  value={hour}
+                  onChange={(event) =>
+                    setHour(
+                      Number(
+                        event.target.value
+                      )
+                    )
+                  }
+                />
+              </label>
+
+              <label>
+                <span>Minute</span>
+
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={minute}
+                  onChange={(event) =>
+                    setMinute(
+                      Number(
+                        event.target.value
+                      )
+                    )
+                  }
+                />
+              </label>
+            </>
+          )}
+
+          {scheduleType === "weekly" && (
+            <label className="form-full">
+              <span>Weekday</span>
+
+              <select
+                value={weekday}
+                onChange={(event) =>
+                  setWeekday(
+                    Number(
+                      event.target.value
+                    )
+                  )
+                }
+              >
+                <option value="0">Monday</option>
+                <option value="1">Tuesday</option>
+                <option value="2">Wednesday</option>
+                <option value="3">Thursday</option>
+                <option value="4">Friday</option>
+                <option value="5">Saturday</option>
+                <option value="6">Sunday</option>
+              </select>
+            </label>
+          )}
+
+          {scheduleType === "monthly" && (
+            <label className="form-full">
+              <span>
+                Day of Month
+              </span>
+
+              <input
+                required
+                type="number"
+                min="1"
+                max="31"
+                value={dayOfMonth}
+                onChange={(event) =>
+                  setDayOfMonth(
+                    Number(
+                      event.target.value
+                    )
+                  )
+                }
+              />
+            </label>
+          )}
+
+          <label className="checkbox-label form-full">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) =>
+                setEnabled(
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>
+              Task enabled
+            </span>
+          </label>
+
+          {action === "INSTALL_ALL" && (
+            <div className="task-warning form-full">
+              This task installs all available updates
+              automatically on all selected target servers.
+            </div>
+          )}
+
+          <div className="modal-actions form-full">
+            <button
+              type="button"
+              className="button"
+              disabled={saving}
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="button primary"
+              disabled={
+                saving ||
+                serverIds.length === 0
+              }
+            >
+              {saving
+                ? "Saving…"
+                : (
+                    editing
+                      ? "Save Changes"
+                      : "Create Task"
+                  )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TasksPanel({
+  tasks,
+  servers,
+  onAdd,
+  onChanged,
+  onError,
+  onEdit,
+  taskTimezone,
+  onTaskTimezoneChange
+}: {
+  tasks: ScheduledTask[];
+  servers: Server[];
+  onAdd: () => void;
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+  onEdit: (task: ScheduledTask) => void;
+  taskTimezone: string;
+  onTaskTimezoneChange: (timezone: string) => void;
+}) {
+  const [busyTask, setBusyTask] =
+    useState<number | null>(null);
+
+
+  function targetNames(
+    task: ScheduledTask
+  ): string {
+    const names = task.server_ids.map(
+      (serverId) =>
+        servers.find(
+          (server) =>
+            server.id === serverId
+        )?.name ?? `Server ${serverId}`
+    );
+
+    return names.join(", ");
+  }
+
+
+  async function toggleTask(
+    task: ScheduledTask
+  ) {
+    setBusyTask(task.id);
+
+    try {
+      await updateTask(
+        task.id,
+        {
+          name: task.name,
+          server_ids: task.server_ids,
+          action: task.action as
+            "CHECK" |
+            "INSTALL_ALL" |
+            "CLEANUP" |
+            "REBOOT_CHECK",
+          schedule_type: task.schedule_type as
+            "once" |
+            "daily" |
+            "weekly" |
+            "monthly",
+          timezone: task.timezone,
+          enabled: !task.enabled,
+
+          ...(task.schedule_type === "once"
+            ? {
+                run_at: task.run_at ?? undefined
+              }
+            : {
+                hour: task.hour ?? 0,
+                minute: task.minute ?? 0
+              }),
+
+          ...(task.schedule_type === "weekly"
+            ? {
+                weekday: task.weekday ?? 0
+              }
+            : {}),
+
+          ...(task.schedule_type === "monthly"
+            ? {
+                day_of_month: task.day_of_month ?? 1
+              }
+            : {})
+        }
+      );
+
+      await onChanged();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update task"
+      );
+
+    } finally {
+      setBusyTask(null);
+    }
+  }
+
+
+  async function runNow(
+    task: ScheduledTask
+  ) {
+    if (!window.confirm(
+      `Run task "${task.name}" now on ${task.server_ids.length} target(s)?`
+    )) {
+      return;
+    }
+
+    setBusyTask(task.id);
+
+    try {
+      await runTaskNow(
+        task.id
+      );
+
+      await onChanged();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to run task"
+      );
+
+    } finally {
+      setBusyTask(null);
+    }
+  }
+
+
+  async function removeTask(
+    task: ScheduledTask
+  ) {
+    if (!window.confirm(
+      `Delete task "${task.name}"?`
+    )) {
+      return;
+    }
+
+    setBusyTask(task.id);
+
+    try {
+      await deleteTask(
+        task.id
+      );
+
+      await onChanged();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete task"
+      );
+
+    } finally {
+      setBusyTask(null);
+    }
+  }
+
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2 className="panel-title">
+          Scheduled Tasks
+        </h2>
+
+        <div className="task-header-actions">
+          <label className="task-timezone-select">
+            <span>
+              Default timezone
+            </span>
+
+            <select
+              value={taskTimezone}
+              onChange={(event) =>
+                onTaskTimezoneChange(
+                  event.target.value
+                )
+              }
+            >
+              {getTimezones().map(
+                (zone) => (
+                  <option
+                    key={zone}
+                    value={zone}
+                  >
+                    {zone}
+                  </option>
+                )
+              )}
+            </select>
+          </label>
+
+          <button
+            className="button primary"
+            disabled={servers.length === 0}
+            onClick={onAdd}
+          >
+            + Add Task
+          </button>
+        </div>
+      </div>
+
+      {tasks.length === 0 ? (
+        <div className="empty">
+          No scheduled tasks.
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Targets</th>
+                <th>Action</th>
+                <th>Schedule</th>
+                <th>Timezone</th>
+                <th>Last Run</th>
+                <th>Next Run</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {tasks.map(
+                (task) => (
+                  <tr key={task.id}>
+                    <td>
+                      <strong>
+                        {task.name}
+                      </strong>
+                    </td>
+
+                    <td>
+                      {targetNames(task)}
+                    </td>
+
+                    <td>
+                      {task.action}
+                    </td>
+
+                    <td>
+                      {task.schedule_type}
+                    </td>
+
+                    <td>
+                      {task.timezone}
+                    </td>
+
+                    <td>
+                      {formatDate(
+                        task.last_run_at
+                      )}
+                    </td>
+
+                    <td>
+                      {formatDate(
+                        task.next_run_at
+                      )}
+                    </td>
+
+                    <td>
+                      <span
+                        className={
+                          task.enabled
+                            ? "badge ok"
+                            : "badge warning"
+                        }
+                      >
+                        {task.enabled
+                          ? "Enabled"
+                          : "Disabled"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="table-actions">
+                        <button
+                          className="button small"
+                          disabled={
+                            busyTask === task.id
+                          }
+                          onClick={() =>
+                            onEdit(task)
+                          }
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          className="button small"
+                          disabled={
+                            busyTask === task.id
+                          }
+                          onClick={() =>
+                            void runNow(task)
+                          }
+                        >
+                          Run Now
+                        </button>
+
+                        <button
+                          className="button small"
+                          disabled={
+                            busyTask === task.id
+                          }
+                          onClick={() =>
+                            void toggleTask(task)
+                          }
+                        >
+                          {task.enabled
+                            ? "Disable"
+                            : "Enable"}
+                        </button>
+
+                        <button
+                          className="button danger small"
+                          disabled={
+                            busyTask === task.id
+                          }
+                          onClick={() =>
+                            void removeTask(task)
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+function EditServerModal({
+  server,
+  onClose,
+  onSaved,
+  onError
+}: {
+  server: Server;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [name, setName] =
+    useState(server.name);
+
+  const [host, setHost] =
+    useState(server.host);
+
+  const [sshPort, setSshPort] =
+    useState(server.ssh_port);
+
+  const [username, setUsername] =
+    useState(server.username);
+
+  const [sshPassword, setSshPassword] =
+    useState("");
+
+  const [privilegePassword, setPrivilegePassword] =
+    useState("");
+
+  const [privilegeMethod, setPrivilegeMethod] =
+    useState<
+      "auto" |
+      "sudo" |
+      "su" |
+      "none"
+    >("auto");
+
+  const [
+    useSeparatePrivilegePassword,
+    setUseSeparatePrivilegePassword
+  ] = useState(false);
+
+  const [credentialLoaded, setCredentialLoaded] =
+    useState(false);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [statusText, setStatusText] =
+    useState("");
+
+
+  useEffect(() => {
+    let active = true;
+
+    getCredentialStatus(
+      server.id
+    )
+      .then((status) => {
+        if (!active) {
+          return;
+        }
+
+        setPrivilegeMethod(
+          status.privilege_method
+        );
+
+        setUseSeparatePrivilegePassword(
+          status.separate_privilege_password
+        );
+
+        setCredentialLoaded(true);
+      })
+      .catch((err) => {
+        if (!active) {
+          return;
+        }
+
+        onError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load credential configuration"
+        );
+
+        setCredentialLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [server.id]);
+
+
+  async function submit(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    setSaving(true);
+
+    try {
+      const connectionChanged =
+        host !== server.host
+        || sshPort !== server.ssh_port
+        || username !== server.username;
+
+      const credentialChangeRequested =
+        sshPassword.length > 0
+        || privilegePassword.length > 0;
+
+      setStatusText(
+        "Saving server configuration…"
+      );
+
+      await updateServer(
+        server.id,
+        {
+          name,
+          host,
+          ssh_port: sshPort,
+          username
+        }
+      );
+
+      if (credentialChangeRequested) {
+        if (!sshPassword) {
+          throw new Error(
+            "Enter the SSH password when changing credentials."
+          );
+        }
+
+        setStatusText(
+          "Updating credentials…"
+        );
+
+        await setServerCredentials(
+          server.id,
+          {
+            ssh_password: sshPassword,
+            privilege_method: privilegeMethod,
+
+            privilege_password:
+              useSeparatePrivilegePassword
+                ? privilegePassword
+                : undefined
+          }
+        );
+      }
+
+      if (
+        connectionChanged
+        || credentialChangeRequested
+      ) {
+        setStatusText(
+          "Running discovery…"
+        );
+
+        await discoverServer(
+          server.id
+        );
+
+        setStatusText(
+          "Checking privileges…"
+        );
+
+        await privilegeCheck(
+          server.id
+        );
+      }
+
+      setStatusText(
+        "Server configuration saved."
+      );
+
+      await onSaved();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update server"
+      );
+
+      setStatusText("");
+
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal modal-large">
+        <h2>
+          Edit Server
+        </h2>
+
+        <form
+          className="form-grid"
+          onSubmit={(event) =>
+            void submit(event)
+          }
+        >
+          <label>
+            <span>Name</span>
+
+            <input
+              required
+              value={name}
+              onChange={(event) =>
+                setName(
+                  event.target.value
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>Host / IP</span>
+
+            <input
+              required
+              value={host}
+              onChange={(event) =>
+                setHost(
+                  event.target.value
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>SSH Port</span>
+
+            <input
+              required
+              type="number"
+              min="1"
+              max="65535"
+              value={sshPort}
+              onChange={(event) =>
+                setSshPort(
+                  Number(
+                    event.target.value
+                  )
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>Username</span>
+
+            <input
+              required
+              value={username}
+              onChange={(event) =>
+                setUsername(
+                  event.target.value
+                )
+              }
+            />
+          </label>
+
+          <div className="edit-divider form-full">
+            Credentials
+          </div>
+
+          <div className="form-help form-full">
+            Leave password fields empty to keep the currently
+            stored credentials.
+          </div>
+
+          <label className="form-full">
+            <span>
+              New SSH Password
+            </span>
+
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={sshPassword}
+              onChange={(event) =>
+                setSshPassword(
+                  event.target.value
+                )
+              }
+              placeholder="Leave empty to keep current password"
+            />
+          </label>
+
+          <label>
+            <span>
+              Privilege Method
+            </span>
+
+            <select
+              disabled={!credentialLoaded}
+              value={privilegeMethod}
+              onChange={(event) =>
+                setPrivilegeMethod(
+                  event.target.value as
+                    "auto" |
+                    "sudo" |
+                    "su" |
+                    "none"
+                )
+              }
+            >
+              <option value="auto">
+                Automatic
+              </option>
+
+              <option value="sudo">
+                sudo
+              </option>
+
+              <option value="su">
+                su
+              </option>
+
+              <option value="none">
+                None
+              </option>
+            </select>
+          </label>
+
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              disabled={!credentialLoaded}
+              checked={
+                useSeparatePrivilegePassword
+              }
+              onChange={(event) =>
+                setUseSeparatePrivilegePassword(
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>
+              Use separate privilege password
+            </span>
+          </label>
+
+          {useSeparatePrivilegePassword && (
+            <label className="form-full">
+              <span>
+                New Privilege Password
+              </span>
+
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={privilegePassword}
+                onChange={(event) =>
+                  setPrivilegePassword(
+                    event.target.value
+                  )
+                }
+                placeholder="Only required when changing credentials"
+              />
+            </label>
+          )}
+
+          {statusText && (
+            <div className="form-status form-full">
+              {statusText}
+            </div>
+          )}
+
+          <div className="modal-actions form-full">
+            <button
+              type="button"
+              className="button"
+              disabled={saving}
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="button primary"
+              disabled={
+                saving ||
+                !credentialLoaded
+              }
+            >
+              {saving
+                ? "Saving…"
+                : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+function AddServerModal({
+  onClose,
+  onCreated,
+  onError
+}: {
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [host, setHost] = useState("");
+  const [sshPort, setSshPort] = useState(22);
+  const [username, setUsername] = useState("");
+  const [sshPassword, setSshPassword] = useState("");
+
+  const [privilegeMethod, setPrivilegeMethod] =
+    useState<"auto" | "sudo" | "su" | "none">("auto");
+
+  const [
+    useSeparatePrivilegePassword,
+    setUseSeparatePrivilegePassword
+  ] = useState(false);
+
+  const [
+    privilegePassword,
+    setPrivilegePassword
+  ] = useState("");
+
+  const [saving, setSaving] =
+    useState(false);
+
+
+  async function submit(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    setSaving(true);
+
+    let createdServer: Server | null = null;
+
+    try {
+      createdServer = await createServer({
+        name,
+        host,
+        ssh_port: sshPort,
+        username
+      });
+
+      await setServerCredentials(
+        createdServer.id,
+        {
+          ssh_password: sshPassword,
+          privilege_method: privilegeMethod,
+          privilege_password:
+            useSeparatePrivilegePassword
+              ? privilegePassword
+              : undefined
+        }
+      );
+
+      await discoverServer(
+        createdServer.id
+      );
+
+      await privilegeCheck(
+        createdServer.id
+      );
+
+      await onCreated();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to add server"
+      );
+
+      if (createdServer) {
+        try {
+          await deleteServer(
+            createdServer.id
+          );
+        } catch {
+          // Best-effort rollback.
+        }
+      }
+
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal modal-large">
+        <h2>Add Server</h2>
+
+        <form
+          className="form-grid"
+          onSubmit={(event) =>
+            void submit(event)
+          }
+        >
+          <label>
+            <span>Name</span>
+            <input
+              required
+              value={name}
+              onChange={(event) =>
+                setName(event.target.value)
+              }
+            />
+          </label>
+
+          <label>
+            <span>Host / IP</span>
+            <input
+              required
+              value={host}
+              onChange={(event) =>
+                setHost(event.target.value)
+              }
+            />
+          </label>
+
+          <label>
+            <span>SSH Port</span>
+            <input
+              required
+              type="number"
+              min="1"
+              max="65535"
+              value={sshPort}
+              onChange={(event) =>
+                setSshPort(
+                  Number(
+                    event.target.value
+                  )
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>Username</span>
+            <input
+              required
+              value={username}
+              onChange={(event) =>
+                setUsername(event.target.value)
+              }
+            />
+          </label>
+
+          <label className="form-full">
+            <span>SSH Password</span>
+            <input
+              required
+              type="password"
+              value={sshPassword}
+              onChange={(event) =>
+                setSshPassword(
+                  event.target.value
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>Privilege Method</span>
+
+            <select
+              value={privilegeMethod}
+              onChange={(event) =>
+                setPrivilegeMethod(
+                  event.target.value as
+                    "auto" |
+                    "sudo" |
+                    "su" |
+                    "none"
+                )
+              }
+            >
+              <option value="auto">
+                Automatic
+              </option>
+
+              <option value="sudo">
+                sudo
+              </option>
+
+              <option value="su">
+                su
+              </option>
+
+              <option value="none">
+                None
+              </option>
+            </select>
+          </label>
+
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={
+                useSeparatePrivilegePassword
+              }
+              onChange={(event) =>
+                setUseSeparatePrivilegePassword(
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>
+              Use separate privilege password
+            </span>
+          </label>
+
+          {useSeparatePrivilegePassword && (
+            <label className="form-full">
+              <span>
+                Privilege Password
+              </span>
+
+              <input
+                required
+                type="password"
+                value={privilegePassword}
+                onChange={(event) =>
+                  setPrivilegePassword(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+          )}
+
+          <div className="modal-actions form-full">
+            <button
+              type="button"
+              className="button"
+              disabled={saving}
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="button primary"
+              disabled={saving}
+            >
+              {saving
+                ? "Adding…"
+                : "Add Server"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+function UpdateModal({
+  server,
+  onClose,
+  onChanged,
+  onError
+}: {
+  server: Server;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [result, setResult] =
+    useState<UpdateResult | null>(null);
+
+  const [rebootStatus, setRebootStatus] =
+    useState<RebootStatus | null>(null);
+
+  const [selected, setSelected] =
+    useState<string[]>([]);
+
+  const [busy, setBusy] =
+    useState(false);
+
+
+  async function refresh() {
+    setBusy(true);
+
+    try {
+      const [
+        updateResult,
+        rebootResult
+      ] = await Promise.all([
+        checkUpdates(server.id),
+        getRebootStatus(server.id)
+      ]);
+
+      setResult(updateResult);
+      setRebootStatus(rebootResult);
+
+      setSelected(
+        updateResult.updates.map(
+          (update) =>
+            update.name
+        )
+      );
+
+      await onChanged();
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Update check failed"
+      );
+
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal modal-update">
+        <div className="update-header">
+          <div>
+            <h2>{server.name}</h2>
+
+            <div className="server-host">
+              {server.host}
+            </div>
+          </div>
+
+          <button
+            className="button"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="update-summary">
+          <div>
+            <span>Updates</span>
+
+            <strong>
+              {result?.updates_available
+                ?? server.updates_available}
+            </strong>
+          </div>
+
+          <div>
+            <span>Package Manager</span>
+
+            <strong>
+              {server.package_manager?.toUpperCase()
+                ?? "Unknown"}
+            </strong>
+          </div>
+
+          <div>
+            <span>Reboot</span>
+
+            <strong
+              className={
+                (
+                  rebootStatus?.reboot_required
+                  ?? server.reboot_required
+                )
+                  ? "text-warning"
+                  : "text-ok"
+              }
+            >
+              {(
+                rebootStatus?.reboot_required
+                ?? server.reboot_required
+              )
+                ? "Required"
+                : "No"}
+            </strong>
+          </div>
+        </div>
+
+        {rebootStatus?.reboot_required && (
+          <div className="reboot-warning">
+            <strong>
+              Reboot required
+            </strong>
+
+            <div className="reboot-reasons">
+              {rebootStatus.reasons.map(
+                (reason, index) => (
+                  <div
+                    className="reboot-reason"
+                    key={`${reason.type}-${index}`}
+                  >
+                    <div>
+                      {reason.message}
+                    </div>
+
+                    {reason.type === "kernel" && (
+                      <div className="reboot-kernel-detail">
+                        Running:{" "}
+                        <strong>
+                          {reason.running_kernel}
+                        </strong>
+
+                        {" → "}
+
+                        Installed:{" "}
+                        <strong>
+                          {reason.installed_kernel}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="update-toolbar">
+          <button
+            className="button primary"
+            disabled={busy}
+            onClick={() =>
+              void refresh()
+            }
+          >
+            {busy
+              ? "Checking…"
+              : "Check Updates"}
+          </button>
+
+          <button
+            className="button"
+            disabled={busy}
+            onClick={async () => {
+              if (!window.confirm(
+                `Run package cleanup on ${server.name}?`
+              )) {
+                return;
+              }
+
+              setBusy(true);
+
+              try {
+                await cleanupServer(
+                  server.id
+                );
+
+                await refresh();
+
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Cleanup
+          </button>
+
+          <div className="update-toolbar-spacer" />
+
+          <button
+            className="button primary"
+            disabled={
+              busy ||
+              selected.length === 0
+            }
+            onClick={async () => {
+              if (!window.confirm(
+                `Install ${selected.length} selected update(s) on ${server.name}?`
+              )) {
+                return;
+              }
+
+              setBusy(true);
+
+              try {
+                await installSelectedUpdates(
+                  server.id,
+                  selected
+                );
+
+                await refresh();
+
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Install Selected ({selected.length})
+          </button>
+
+          <button
+            className="button primary"
+            disabled={
+              busy ||
+              !result ||
+              result.updates_available === 0
+            }
+            onClick={async () => {
+              if (!window.confirm(
+                `Install all available updates on ${server.name}?`
+              )) {
+                return;
+              }
+
+              setBusy(true);
+
+              try {
+                await installAllUpdates(
+                  server.id
+                );
+
+                await refresh();
+
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Install All
+          </button>
+        </div>
+
+        {!result ? (
+          <div className="update-not-checked">
+            <strong>
+              Updates have not been checked yet.
+            </strong>
+
+            <span>
+              Click "Check Updates" to retrieve the current
+              package status from this server.
+            </span>
+          </div>
+        ) : result.updates.length ? (
+          <div className="table-wrap update-table">
+            <table>
+              <thead>
+                <tr>
+                  <th />
+                  <th>Package</th>
+                  <th>Installed</th>
+                  <th>Available</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {result.updates.map(
+                  (update) => (
+                    <tr key={update.name}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={
+                            selected.includes(
+                              update.name
+                            )
+                          }
+                          onChange={() =>
+                            setSelected(
+                              (current) =>
+                                current.includes(
+                                  update.name
+                                )
+                                  ? current.filter(
+                                      (item) =>
+                                        item !== update.name
+                                    )
+                                  : [
+                                      ...current,
+                                      update.name
+                                    ]
+                            )
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        {update.name}
+                      </td>
+
+                      <td>
+                        {update.installed_version}
+                      </td>
+
+                      <td>
+                        {update.available_version}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty">
+            System is up to date.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function ServerPanel({
+  servers,
+  onUpdates,
+  onEdit,
+  onDelete,
+  onAdd
+}: {
+  servers: Server[];
+  onUpdates: (server: Server) => void;
+  onEdit: (server: Server) => void;
+  onDelete: (server: Server) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2 className="panel-title">
+          Servers
+        </h2>
+
+        <button
+          className="button primary"
+          onClick={onAdd}
+        >
+          + Add Server
+        </button>
+      </div>
+
+      {servers.length === 0 ? (
+        <div className="empty">
+          No servers configured.
+        </div>
+      ) : (
+        <div className="server-grid">
+          {servers.map(
+            (server) => (
+              <div
+                className="server-card"
+                key={server.id}
+              >
+                <div className="server-top">
+                  <div>
+                    <div className="server-name">
+                      {server.name}
+                    </div>
+
+                    <div className="server-host">
+                      {server.host}
+                    </div>
+                  </div>
+
+                  <span
+                    className={
+                      server.reboot_required
+                        ? "badge warning"
+                        : "badge ok"
+                    }
+                  >
+                    {server.reboot_required
+                      ? "Reboot required"
+                      : "Ready"}
+                  </span>
+                </div>
+
+                <div className="server-meta">
+                  <div className="server-meta-row">
+                    <span>Hostname</span>
+
+                    <span>
+                      {server.system_hostname ?? "Unknown"}
+                    </span>
+                  </div>
+
+                  <div className="server-meta-row">
+                    <span>Distribution</span>
+
+                    <span>
+                      {server.distribution ?? "Unknown"}
+                    </span>
+                  </div>
+
+                  <div className="server-meta-row">
+                    <span>Package Manager</span>
+
+                    <span>
+                      {server.package_manager?.toUpperCase()
+                        ?? "Unknown"}
+                    </span>
+                  </div>
+
+                  <div className="server-meta-row">
+                    <span>Kernel</span>
+
+                    <span>
+                      {server.kernel_version ?? "Unknown"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="server-actions">
+                  <button
+                    className="button primary"
+                    onClick={() =>
+                      onUpdates(server)
+                    }
+                  >
+                    Updates
+                  </button>
+
+                  <div className="server-action-spacer" />
+
+                  <button
+                    className="button"
+                    onClick={() =>
+                      onEdit(server)
+                    }
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className="button danger"
+                    onClick={() =>
+                      onDelete(server)
+                    }
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+function HistoryPanel({
+  history,
+  allowClear = false,
+  retentionDays,
+  onRetentionChange,
+  onClear
+}: {
+  history: HistoryEntry[];
+  allowClear?: boolean;
+  retentionDays?: number | null;
+  onRetentionChange?: (
+    days: number | null
+  ) => void;
+  onClear?: () => void;
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2 className="panel-title">
+          History
+        </h2>
+
+        {allowClear && (
+          <div className="history-actions">
+            <label className="history-retention">
+              <span>
+                Retention
+              </span>
+
+              <select
+                value={
+                  retentionDays === null
+                    ? "unlimited"
+                    : String(retentionDays ?? 7)
+                }
+                onChange={(event) => {
+                  const value =
+                    event.target.value;
+
+                  onRetentionChange?.(
+                    value === "unlimited"
+                      ? null
+                      : Number(value)
+                  );
+                }}
+              >
+                <option value="7">
+                  7 days
+                </option>
+
+                <option value="14">
+                  14 days
+                </option>
+
+                <option value="30">
+                  30 days
+                </option>
+
+                <option value="60">
+                  60 days
+                </option>
+
+                <option value="90">
+                  90 days
+                </option>
+
+                <option value="180">
+                  180 days
+                </option>
+
+                <option value="365">
+                  365 days
+                </option>
+
+                <option value="unlimited">
+                  Unlimited
+                </option>
+              </select>
+            </label>
+
+            {history.length > 0 && (
+              <button
+                className="button danger"
+                onClick={onClear}
+              >
+                Clear History
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {history.length === 0 ? (
+        <div className="empty">
+          No history entries.
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Server</th>
+                <th>Action</th>
+                <th>Status</th>
+                <th>Packages</th>
+                <th>Reboot</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {history.map(
+                (entry) => (
+                  <tr key={entry.id}>
+                    <td>
+                      {formatDate(
+                        entry.created_at
+                      )}
+                    </td>
+
+                    <td>
+                      {entry.server_name}
+                    </td>
+
+                    <td>
+                      {entry.action}
+                    </td>
+
+                    <td>
+                      <span
+                        className={
+                          entry.status === "SUCCESS"
+                            ? "badge ok"
+                            : "badge warning"
+                        }
+                      >
+                        {entry.status}
+                      </span>
+                    </td>
+
+                    <td>
+                      {entry.package_count}
+                    </td>
+
+                    <td>
+                      {entry.reboot_required
+                        ? "Required"
+                        : "No"}
+                    </td>
+
+                    <td>
+                      {entry.message ?? ""}
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default App;

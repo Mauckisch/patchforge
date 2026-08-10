@@ -1,0 +1,376 @@
+import re
+
+import paramiko
+
+
+class AptError(Exception):
+    pass
+
+
+PACKAGE_NAME_PATTERN = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9+_.:-]*$"
+)
+
+
+def _decode(value: str | bytes) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    return value
+
+
+def _execute(
+    transport: paramiko.Transport,
+    command: str,
+    stdin_data: str | None = None,
+    timeout: int = 120,
+) -> tuple[int, str, str]:
+    channel = transport.open_session(timeout=10)
+
+    try:
+        channel.settimeout(timeout)
+        channel.exec_command(command)
+
+        if stdin_data is not None:
+            channel.sendall(stdin_data.encode("utf-8"))
+            channel.shutdown_write()
+
+        stdout_raw = channel.makefile("r", -1).read()
+        stderr_raw = channel.makefile_stderr("r", -1).read()
+
+        exit_status = channel.recv_exit_status()
+
+        return (
+            exit_status,
+            _decode(stdout_raw).strip(),
+            _decode(stderr_raw).strip(),
+        )
+
+    finally:
+        channel.close()
+
+
+def _privileged_command(
+    command: str,
+    privilege_method: str,
+    privilege_password: str | None,
+) -> tuple[str, str | None]:
+    if privilege_method == "root":
+        return f"LC_ALL=C {command}", None
+
+    if privilege_method == "sudo":
+        if privilege_password is None:
+            return f"sudo -n env LC_ALL=C {command}", None
+
+        return (
+            f"sudo -S -p '' env LC_ALL=C {command}",
+            f"{privilege_password}\n",
+        )
+
+    raise AptError(
+        f"Unsupported privilege method for APT: {privilege_method}"
+    )
+
+
+def refresh_package_index(
+    transport: paramiko.Transport,
+    privilege_method: str,
+    privilege_password: str | None,
+) -> None:
+    command, stdin_data = _privileged_command(
+        "apt-get update",
+        privilege_method,
+        privilege_password,
+    )
+
+    status, stdout, stderr = _execute(
+        transport,
+        command,
+        stdin_data=stdin_data,
+        timeout=300,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr or stdout or "apt-get update failed"
+        )
+
+
+def list_updates(
+    transport: paramiko.Transport,
+) -> tuple[list[dict], str]:
+    status, stdout, stderr = _execute(
+        transport,
+        "LC_ALL=C apt list --upgradable 2>/dev/null",
+        timeout=60,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr or "Unable to retrieve available APT updates"
+        )
+
+    updates: list[dict] = []
+
+    pattern = re.compile(
+        r"^(?P<name>[^/]+)/\S+\s+"
+        r"(?P<available>\S+)\s+"
+        r"\S+\s+"
+        r"\[upgradable from: (?P<installed>[^\]]+)\]$"
+    )
+
+    for line in stdout.splitlines():
+        line = line.strip()
+
+        if not line or line.startswith("Listing"):
+            continue
+
+        match = pattern.match(line)
+
+        if match is None:
+            continue
+
+        updates.append(
+            {
+                "name": match.group("name"),
+                "installed_version": match.group("installed"),
+                "available_version": match.group("available"),
+            }
+        )
+
+    return updates, stdout
+
+
+def validate_requested_packages(
+    requested_packages: list[str],
+    available_updates: list[dict],
+) -> list[str]:
+    available_names = {
+        update["name"]
+        for update in available_updates
+    }
+
+    validated: list[str] = []
+
+    for package in requested_packages:
+        if not PACKAGE_NAME_PATTERN.fullmatch(package):
+            raise AptError(
+                f"Invalid package name: {package}"
+            )
+
+        if package not in available_names:
+            raise AptError(
+                f"Package is not an available update: {package}"
+            )
+
+        if package not in validated:
+            validated.append(package)
+
+    return validated
+
+
+def install_updates(
+    transport: paramiko.Transport,
+    packages: list[str],
+    privilege_method: str,
+    privilege_password: str | None,
+) -> None:
+    if not packages:
+        raise AptError(
+            "No packages selected for installation"
+        )
+
+    package_arguments = " ".join(packages)
+
+    command, stdin_data = _privileged_command(
+        (
+            "DEBIAN_FRONTEND=noninteractive "
+            "apt-get install -y --only-upgrade "
+            f"{package_arguments}"
+        ),
+        privilege_method,
+        privilege_password,
+    )
+
+    status, stdout, stderr = _execute(
+        transport,
+        command,
+        stdin_data=stdin_data,
+        timeout=1800,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr or stdout or "APT update installation failed"
+        )
+
+
+def _kernel_sort_key(kernel: str) -> tuple:
+    parts = re.split(r"(\d+)", kernel)
+
+    key: list[tuple[int, int | str]] = []
+
+    for part in parts:
+        if not part:
+            continue
+
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part.lower()))
+
+    return tuple(key)
+
+
+def get_kernel_reboot_status(
+    transport: paramiko.Transport,
+) -> dict:
+    flag_status, _, _ = _execute(
+        transport,
+        "test -f /var/run/reboot-required",
+        timeout=10,
+    )
+
+    reboot_flag = flag_status == 0
+
+    status, running_kernel, stderr = _execute(
+        transport,
+        "uname -r",
+        timeout=10,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr or "Unable to determine running kernel"
+        )
+
+    status, kernel_files, _ = _execute(
+        transport,
+        "ls -1 /boot/vmlinuz-* 2>/dev/null",
+        timeout=10,
+    )
+
+    installed_kernels: list[str] = []
+
+    if status == 0:
+        for line in kernel_files.splitlines():
+            line = line.strip()
+
+            prefix = "/boot/vmlinuz-"
+
+            if line.startswith(prefix):
+                kernel = line[len(prefix):]
+
+                if kernel:
+                    installed_kernels.append(kernel)
+
+    newest_installed_kernel = None
+    newer_kernel_installed = False
+
+    if installed_kernels:
+        newest_installed_kernel = max(
+            installed_kernels,
+            key=_kernel_sort_key,
+        )
+
+        newer_kernel_installed = (
+            _kernel_sort_key(newest_installed_kernel)
+            > _kernel_sort_key(running_kernel)
+        )
+
+    reboot_required = (
+        reboot_flag
+        or newer_kernel_installed
+    )
+
+    reasons: list[dict] = []
+
+    if newer_kernel_installed:
+        reasons.append(
+            {
+                "type": "kernel",
+                "message": (
+                    "A newer kernel is installed than the "
+                    "currently running kernel."
+                ),
+                "running_kernel": running_kernel,
+                "installed_kernel": newest_installed_kernel,
+            }
+        )
+
+    if reboot_flag:
+        reasons.append(
+            {
+                "type": "reboot_flag",
+                "message": (
+                    "The operating system has created "
+                    "/var/run/reboot-required."
+                ),
+            }
+        )
+
+    return {
+        "reboot_required": reboot_required,
+        "reboot_flag_present": reboot_flag,
+        "running_kernel": running_kernel,
+        "newest_installed_kernel": newest_installed_kernel,
+        "newer_kernel_installed": newer_kernel_installed,
+        "reasons": reasons,
+    }
+
+
+def check_reboot_required(
+    transport: paramiko.Transport,
+) -> bool:
+    return get_kernel_reboot_status(
+        transport
+    )["reboot_required"]
+
+
+def cleanup(
+    transport: paramiko.Transport,
+    privilege_method: str,
+    privilege_password: str | None,
+) -> dict:
+    autoclean_command, autoclean_stdin = _privileged_command(
+        "apt-get autoclean",
+        privilege_method,
+        privilege_password,
+    )
+
+    status, stdout, stderr = _execute(
+        transport,
+        autoclean_command,
+        stdin_data=autoclean_stdin,
+        timeout=300,
+    )
+
+    if status != 0:
+        raise AptError(
+            stderr or stdout or "APT autoclean failed"
+        )
+
+    autoremove_command, autoremove_stdin = _privileged_command(
+        "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y",
+        privilege_method,
+        privilege_password,
+    )
+
+    status, autoremove_stdout, autoremove_stderr = _execute(
+        transport,
+        autoremove_command,
+        stdin_data=autoremove_stdin,
+        timeout=1800,
+    )
+
+    if status != 0:
+        raise AptError(
+            autoremove_stderr
+            or autoremove_stdout
+            or "APT autoremove failed"
+        )
+
+    return {
+        "autoclean_completed": True,
+        "autoremove_completed": True,
+    }
