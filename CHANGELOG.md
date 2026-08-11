@@ -5,6 +5,15 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.5.2]
+
+### Fixed
+
+- Improved the Scheduled Tasks table layout for tasks with many target servers.
+- Target server names are now displayed vertically instead of as one long comma-separated line.
+- Prevented the Targets column from unnecessarily expanding the task table horizontally.
+- Improved readability of multi-server scheduled tasks.
+
 ## [1.5.1]
 
 ### Added

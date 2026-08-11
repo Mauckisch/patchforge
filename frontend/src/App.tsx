@@ -371,7 +371,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.5.1
+              for Linux · v1.5.2
             </div>
           </div>
         </div>
@@ -427,7 +427,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.5.1
+            PatchForge v1.5.2
           </div>
         </header>
 
@@ -1562,21 +1562,6 @@ function TasksPanel({
   }
 
 
-  function targetNames(
-    task: ScheduledTask
-  ): string {
-    const names = task.server_ids.map(
-      (serverId) =>
-        servers.find(
-          (server) =>
-            server.id === serverId
-        )?.name ?? `Server ${serverId}`
-    );
-
-    return names.join(", ");
-  }
-
-
   async function toggleTask(
     task: ScheduledTask
   ) {
@@ -1753,8 +1738,22 @@ function TasksPanel({
                       </strong>
                     </td>
 
-                    <td>
-                      {targetNames(task)}
+                    <td className="task-targets-cell">
+                      <div className="task-targets">
+                        {task.server_ids.map(
+                          (serverId) => (
+                            <div
+                              key={serverId}
+                              className="task-target"
+                            >
+                              {servers.find(
+                                (server) =>
+                                  server.id === serverId
+                              )?.name ?? `Server ${serverId}`}
+                            </div>
+                          )
+                        )}
+                      </div>
                     </td>
 
                     <td>
