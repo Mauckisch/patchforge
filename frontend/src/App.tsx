@@ -371,7 +371,7 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.5.0
+              for Linux · v1.5.1
             </div>
           </div>
         </div>
@@ -427,7 +427,7 @@ function App() {
           </div>
 
           <div className="status-pill">
-            PatchForge v1.5.0
+            PatchForge v1.5.1
           </div>
         </header>
 
