@@ -12,6 +12,12 @@ from app.services.discovery import (
     AuthenticationError,
     DiscoveryError,
 )
+from app.services.notifications import (
+    EVENT_SERVER_OFFLINE,
+    EVENT_SERVER_ONLINE,
+    EVENT_SSH_ERROR,
+    send_notification_event,
+)
 from app.services.privilege import _open_transport
 from app.services.server_status import (
     mark_error,
@@ -55,10 +61,78 @@ def _ping_host(
         return False
 
 
+def _notify_status_transition(
+    db: Session,
+    server: Server,
+    previous_status: str,
+) -> None:
+    current_status = server.connection_status
+
+    if current_status == previous_status:
+        return
+
+    if current_status == "UNREACHABLE":
+        send_notification_event(
+            db=db,
+            event_key=EVENT_SERVER_OFFLINE,
+            title=f"{server.name} is offline",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Previous status: {previous_status}\n"
+                f"Current status: {current_status}\n"
+                f"Reason: {server.last_error or 'Host unreachable'}"
+            ),
+        )
+
+        return
+
+    if (
+        current_status == "ONLINE"
+        and previous_status
+        in {
+            "UNREACHABLE",
+            "ERROR",
+            "AUTH_FAILED",
+        }
+    ):
+        send_notification_event(
+            db=db,
+            event_key=EVENT_SERVER_ONLINE,
+            title=f"{server.name} is online again",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Previous status: {previous_status}\n"
+                f"Current status: {current_status}"
+            ),
+        )
+
+        return
+
+    if current_status == "ERROR":
+        send_notification_event(
+            db=db,
+            event_key=EVENT_SSH_ERROR,
+            title=f"SSH error on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Previous status: {previous_status}\n"
+                f"Current status: {current_status}\n"
+                f"Reason: {server.last_error or 'SSH connection failed'}"
+            ),
+        )
+
+
 def _check_server(
     server: Server,
     db: Session,
 ) -> dict:
+    previous_status = (
+        server.connection_status
+    )
+
     credential = db.scalar(
         select(ServerCredential).where(
             ServerCredential.server_id == server.id
@@ -149,6 +223,12 @@ def _check_server(
 
     db.commit()
     db.refresh(server)
+
+    _notify_status_transition(
+        db,
+        server,
+        previous_status,
+    )
 
     return {
         "server_id": server.id,

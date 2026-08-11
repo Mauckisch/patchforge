@@ -17,6 +17,16 @@ from app.services.history import (
     STATUS_SUCCESS,
     create_history_entry,
 )
+from app.services.notifications import (
+    EVENT_CLEANUP_AVAILABLE,
+    EVENT_CLEANUP_FAILED,
+    EVENT_CLEANUP_SUCCESS,
+    EVENT_INSTALL_FAILED,
+    EVENT_INSTALL_SUCCESS,
+    EVENT_REBOOT_REQUIRED,
+    EVENT_UPDATES_AVAILABLE,
+    send_notification_event,
+)
 from app.services.privilege import (
     PrivilegeError,
     PrivilegeUnavailableError,
@@ -192,6 +202,34 @@ def _raise_update_error(
         exc,
     )
 
+    if action in {
+        ACTION_INSTALL_SELECTED,
+        ACTION_INSTALL_ALL,
+    }:
+        send_notification_event(
+            db=db,
+            event_key=EVENT_INSTALL_FAILED,
+            title=f"Update installation failed on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Action: {action}\n"
+                f"Error: {exc}"
+            ),
+        )
+
+    elif action == ACTION_CLEANUP:
+        send_notification_event(
+            db=db,
+            event_key=EVENT_CLEANUP_FAILED,
+            title=f"Cleanup failed on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Error: {exc}"
+            ),
+        )
+
     if isinstance(
         exc,
         AuthenticationError,
@@ -219,6 +257,59 @@ def _raise_update_error(
     ) from exc
 
 
+def _notify_package_state_changes(
+    db: Session,
+    server: Server,
+    previous_updates: int,
+    previous_cleanup: bool | None,
+    previous_reboot: bool,
+) -> None:
+    if (
+        previous_updates == 0
+        and server.updates_available > 0
+    ):
+        send_notification_event(
+            db=db,
+            event_key=EVENT_UPDATES_AVAILABLE,
+            title=f"Updates available on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Available updates: {server.updates_available}"
+            ),
+        )
+
+    if (
+        previous_cleanup is not True
+        and server.cleanup_available is True
+    ):
+        send_notification_event(
+            db=db,
+            event_key=EVENT_CLEANUP_AVAILABLE,
+            title=f"Cleanup available on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                "Removable package leftovers are available."
+            ),
+        )
+
+    if (
+        not previous_reboot
+        and server.reboot_required
+    ):
+        send_notification_event(
+            db=db,
+            event_key=EVENT_REBOOT_REQUIRED,
+            title=f"Reboot required on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                "A reboot is required to complete system changes."
+            ),
+        )
+
+
 @router.post("/{server_id}/updates/check")
 def check_updates(
     server_id: int,
@@ -227,6 +318,18 @@ def check_updates(
     server = _get_server(
         server_id,
         db,
+    )
+
+    previous_updates = (
+        server.updates_available
+    )
+
+    previous_cleanup = (
+        server.cleanup_available
+    )
+
+    previous_reboot = (
+        server.reboot_required
     )
 
     try:
@@ -333,10 +436,22 @@ def check_updates(
             locked_packages,
         )
 
+        server.updates_available = (
+            len(unlocked_updates)
+        )
+
         mark_online(server)
 
         db.commit()
         db.refresh(server)
+
+        _notify_package_state_changes(
+            db=db,
+            server=server,
+            previous_updates=previous_updates,
+            previous_cleanup=previous_cleanup,
+            previous_reboot=previous_reboot,
+        )
 
         create_history_entry(
             db=db,
@@ -471,6 +586,18 @@ def install_selected_updates(
             reboot_required=server.reboot_required,
             message=(
                 f"Installed: {', '.join(validated_packages)}"
+            ),
+        )
+
+        send_notification_event(
+            db=db,
+            event_key=EVENT_INSTALL_SUCCESS,
+            title=f"Updates installed on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Installed packages: {len(validated_packages)}\n"
+                f"Packages: {', '.join(validated_packages)}"
             ),
         )
 

@@ -1011,3 +1011,96 @@ def send_email_test_message(
         raise RuntimeError(
             f"Email delivery failed: {exc}"
         ) from exc
+
+
+def send_notification_event(
+    db: Session,
+    event_key: str,
+    title: str,
+    message: str,
+) -> dict:
+    """
+    Deliver one PatchForge event through all enabled
+    channels configured for that event.
+
+    Notification delivery errors are intentionally
+    isolated from the operation that triggered the event.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if event_key not in NOTIFICATION_EVENTS:
+        raise ValueError(
+            f"Unsupported notification event: {event_key}"
+        )
+
+    settings = get_notification_settings(
+        db
+    )
+
+    preference = db.scalar(
+        select(
+            NotificationEventPreference
+        ).where(
+            NotificationEventPreference.event_key
+            == event_key
+        )
+    )
+
+    if preference is None:
+        return {
+            "email": False,
+            "discord": False,
+        }
+
+    result = {
+        "email": False,
+        "discord": False,
+    }
+
+    if (
+        settings.discord_enabled
+        and preference.discord_enabled
+    ):
+        try:
+            send_discord_message(
+                db,
+                (
+                    f"🔔 **{title}**\n\n"
+                    f"{message}"
+                ),
+            )
+
+            result["discord"] = True
+
+        except Exception as exc:
+            logger.exception(
+                "Discord notification failed "
+                "for event %s: %s",
+                event_key,
+                exc,
+            )
+
+    if (
+        settings.email_enabled
+        and preference.email_enabled
+    ):
+        try:
+            send_email_message(
+                db,
+                f"PatchForge - {title}",
+                message,
+            )
+
+            result["email"] = True
+
+        except Exception as exc:
+            logger.exception(
+                "Email notification failed "
+                "for event %s: %s",
+                event_key,
+                exc,
+            )
+
+    return result
