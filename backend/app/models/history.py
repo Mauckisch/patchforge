@@ -26,6 +26,12 @@ class HistoryEntry(Base):
         nullable=False,
     )
 
+    task_run_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
     action: Mapped[str] = mapped_column(
         String(50),
         nullable=False,

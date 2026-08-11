@@ -73,6 +73,12 @@ class ScheduledTask(Base):
         default=True,
     )
 
+    notify_only_on_updates: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
     last_run_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,

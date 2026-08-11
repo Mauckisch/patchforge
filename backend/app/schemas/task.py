@@ -67,11 +67,22 @@ class TaskCreate(BaseModel):
 
     enabled: bool = True
 
+    notify_only_on_updates: bool = False
+
     @model_validator(mode="after")
     def validate_schedule(self):
         self.server_ids = list(
             dict.fromkeys(self.server_ids)
         )
+
+        if (
+            self.notify_only_on_updates
+            and self.action != "CHECK"
+        ):
+            raise ValueError(
+                "notify_only_on_updates is only valid "
+                "for CHECK tasks"
+            )
 
         if self.schedule_type == "once":
             if self.run_at is None:
@@ -131,9 +142,55 @@ class TaskResponse(BaseModel):
     day_of_month: int | None
 
     enabled: bool
+    notify_only_on_updates: bool
 
     last_run_at: datetime | None
     next_run_at: datetime | None
 
     created_at: datetime
     updated_at: datetime
+
+
+class TaskRunSummaryResponse(BaseModel):
+    id: int
+    task_id: int
+    task_name: str
+    action: str
+    status: str
+
+    target_count: int
+    success_count: int
+    failed_count: int
+    updates_found: int
+
+    started_at: datetime
+    completed_at: datetime | None
+
+
+class TaskRunResultResponse(BaseModel):
+    id: int
+
+    server_id: int
+    server_name: str
+    host: str
+
+    status: str
+
+    update_count: int
+    updates: list[str]
+
+    installed_count: int
+    installed_packages: list[str]
+    remaining_updates: int
+
+    cleanup_available: bool | None
+    reboot_required: bool
+
+    error: str | None
+    completed_at: datetime
+
+
+class TaskRunDetailResponse(TaskRunSummaryResponse):
+    results: list[
+        TaskRunResultResponse
+    ]

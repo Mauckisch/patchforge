@@ -32,6 +32,10 @@ from app.models.notification import (
     NotificationSettings,
 )
 from app.models.task import ScheduledTask
+from app.models.task_run import (
+    TaskRun,
+    TaskRunResult,
+)
 from app.models.task_target import ScheduledTaskTarget
 from app.services.scheduler import (
     start_scheduler,

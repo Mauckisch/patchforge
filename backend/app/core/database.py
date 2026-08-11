@@ -101,6 +101,73 @@ def run_database_migrations() -> None:
             )
         }
 
+        if "scheduled_tasks" in tables:
+            task_columns = _columns(
+                connection,
+                "scheduled_tasks",
+            )
+
+            if "notify_only_on_updates" not in task_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE scheduled_tasks "
+                        "ADD COLUMN notify_only_on_updates BOOLEAN "
+                        "NOT NULL DEFAULT 0"
+                    )
+                )
+
+        if "task_run_results" in tables:
+            task_run_result_columns = _columns(
+                connection,
+                "task_run_results",
+            )
+
+            task_run_result_migrations = {
+                "installed_count":
+                    "ALTER TABLE task_run_results "
+                    "ADD COLUMN installed_count INTEGER "
+                    "NOT NULL DEFAULT 0",
+
+                "installed_packages_json":
+                    "ALTER TABLE task_run_results "
+                    "ADD COLUMN installed_packages_json TEXT",
+
+                "remaining_updates":
+                    "ALTER TABLE task_run_results "
+                    "ADD COLUMN remaining_updates INTEGER "
+                    "NOT NULL DEFAULT 0",
+            }
+
+            for column, statement in (
+                task_run_result_migrations.items()
+            ):
+                if column not in task_run_result_columns:
+                    connection.execute(
+                        text(statement)
+                    )
+
+        if "history" in tables:
+            history_columns = _columns(
+                connection,
+                "history",
+            )
+
+            if "task_run_id" not in history_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE history "
+                        "ADD COLUMN task_run_id INTEGER"
+                    )
+                )
+
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS "
+                        "ix_history_task_run_id "
+                        "ON history (task_run_id)"
+                    )
+                )
+
         if "server_updates" in tables:
             update_columns = _columns(
                 connection,

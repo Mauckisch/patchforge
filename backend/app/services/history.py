@@ -21,10 +21,12 @@ def create_history_entry(
     package_count: int = 0,
     reboot_required: bool = False,
     message: str | None = None,
+    task_run_id: int | None = None,
 ) -> HistoryEntry:
     entry = HistoryEntry(
         server_id=server.id,
         server_name=server.name,
+        task_run_id=task_run_id,
         action=action,
         status=status,
         package_count=package_count,

@@ -1618,3 +1618,45 @@ td {
     width: 100%;
   }
 }
+
+
+/* ============================================================
+   Task run details
+   ============================================================ */
+
+.task-run-packages {
+  display: grid;
+  gap: 3px;
+  margin-top: 7px;
+  color: #9aaba1;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: normal;
+}
+
+.task-run-error {
+  margin-top: 7px;
+  color: #ff9da5;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+
+/* ============================================================
+   Clickable task runs in History
+   ============================================================ */
+
+.history-task-run-row {
+  cursor: pointer;
+}
+
+.history-task-run-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.history-open-hint {
+  color: #83958b;
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -8,6 +8,8 @@ import type {
   RebootStatus,
   ScheduledTask,
   Server,
+  TaskRunDetail,
+  TaskRunSummary,
   UpdateResult
 } from "./types";
 
@@ -57,6 +59,32 @@ export function getServers(): Promise<Server[]> {
 
 export function getTasks(): Promise<ScheduledTask[]> {
   return request<ScheduledTask[]>("/api/tasks");
+}
+
+
+export function getTaskRuns(
+  taskId: number
+): Promise<TaskRunSummary[]> {
+  return request<TaskRunSummary[]>(
+    `/api/tasks/${taskId}/runs`
+  );
+}
+
+
+export function getTaskRun(
+  taskId: number,
+  runId: number
+): Promise<TaskRunDetail> {
+  return request<TaskRunDetail>(
+    `/api/tasks/${taskId}/runs/${runId}`
+  );
+}
+
+
+export function getTaskRunHistory(): Promise<TaskRunSummary[]> {
+  return request<TaskRunSummary[]>(
+    "/api/history/task-runs"
+  );
 }
 
 
@@ -229,6 +257,7 @@ export interface CreateTaskPayload {
   weekday?: number;
   day_of_month?: number;
   enabled: boolean;
+  notify_only_on_updates: boolean;
 }
 
 

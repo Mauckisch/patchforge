@@ -23,6 +23,9 @@ import {
   getRebootStatus,
   getServers,
   getSettings,
+  getTaskRun,
+  getTaskRunHistory,
+  getTaskRuns,
   getTasks,
   getUpdateSnapshot,
   installAllUpdates,
@@ -51,6 +54,8 @@ import type {
   RebootStatus,
   ScheduledTask,
   Server,
+  TaskRunDetail,
+  TaskRunSummary,
   UpdateResult
 } from "./types";
 
@@ -126,6 +131,9 @@ function App() {
   const [history, setHistory] =
     useState<HistoryEntry[]>([]);
 
+  const [taskRunHistory, setTaskRunHistory] =
+    useState<TaskRunSummary[]>([]);
+
   const [
     historyRetentionDays,
     setHistoryRetentionDays
@@ -182,16 +190,21 @@ function App() {
       const [
         serverData,
         taskData,
-        historyData
+        historyData,
+        taskRunHistoryData
       ] = await Promise.all([
         getServers(),
         getTasks(),
-        getHistory()
+        getHistory(),
+        getTaskRunHistory()
       ]);
 
       setServers(serverData);
       setTasks(taskData);
       setHistory(historyData);
+      setTaskRunHistory(
+        taskRunHistoryData
+      );
 
     } catch (err) {
       setError(
@@ -486,6 +499,7 @@ function App() {
             {page === "history" && (
               <HistoryPanel
                 history={history}
+                taskRuns={taskRunHistory}
                 allowClear={true}
                 retentionDays={historyRetentionDays}
                 onRetentionChange={async (days) => {
@@ -992,6 +1006,13 @@ function AddTaskModal({
       task?.enabled ?? true
     );
 
+  const [
+    notifyOnlyOnUpdates,
+    setNotifyOnlyOnUpdates
+  ] = useState(
+    task?.notify_only_on_updates ?? false
+  );
+
   const [saving, setSaving] =
     useState(false);
 
@@ -1036,6 +1057,10 @@ function AddTaskModal({
         schedule_type: scheduleType,
         timezone,
         enabled,
+        notify_only_on_updates:
+          action === "CHECK"
+            ? notifyOnlyOnUpdates
+            : false,
         ...(scheduleType === "once"
           ? {
               run_at: runAt
@@ -1394,6 +1419,24 @@ function AddTaskModal({
             </span>
           </label>
 
+          {action === "CHECK" && (
+            <label className="checkbox-label form-full">
+              <input
+                type="checkbox"
+                checked={notifyOnlyOnUpdates}
+                onChange={(event) =>
+                  setNotifyOnlyOnUpdates(
+                    event.target.checked
+                  )
+                }
+              />
+
+              <span>
+                Notify only when updates are found
+              </span>
+            </label>
+          )}
+
           {action === "INSTALL_ALL" && (
             <div className="task-warning form-full">
               This task installs all available updates
@@ -1452,6 +1495,72 @@ function TasksPanel({
   const [busyTask, setBusyTask] =
     useState<number | null>(null);
 
+  const [runTask, setRunTask] =
+    useState<ScheduledTask | null>(null);
+
+  const [taskRuns, setTaskRuns] =
+    useState<TaskRunSummary[]>([]);
+
+  const [selectedRun, setSelectedRun] =
+    useState<TaskRunDetail | null>(null);
+
+  const [loadingRuns, setLoadingRuns] =
+    useState(false);
+
+
+  async function openRuns(
+    task: ScheduledTask
+  ) {
+    setRunTask(task);
+    setSelectedRun(null);
+    setLoadingRuns(true);
+
+    try {
+      const runs = await getTaskRuns(
+        task.id
+      );
+
+      setTaskRuns(runs);
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load task runs"
+      );
+
+    } finally {
+      setLoadingRuns(false);
+    }
+  }
+
+
+  async function openRunDetail(
+    taskId: number,
+    runId: number
+  ) {
+    setLoadingRuns(true);
+
+    try {
+      const detail = await getTaskRun(
+        taskId,
+        runId
+      );
+
+      setSelectedRun(detail);
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load task run details"
+      );
+
+    } finally {
+      setLoadingRuns(false);
+    }
+  }
+
 
   function targetNames(
     task: ScheduledTask
@@ -1491,6 +1600,8 @@ function TasksPanel({
             "monthly",
           timezone: task.timezone,
           enabled: !task.enabled,
+          notify_only_on_updates:
+            task.notify_only_on_updates,
 
           ...(task.schedule_type === "once"
             ? {
@@ -1692,6 +1803,18 @@ function TasksPanel({
                             busyTask === task.id
                           }
                           onClick={() =>
+                            void openRuns(task)
+                          }
+                        >
+                          Runs
+                        </button>
+
+                        <button
+                          className="button small"
+                          disabled={
+                            busyTask === task.id
+                          }
+                          onClick={() =>
                             onEdit(task)
                           }
                         >
@@ -1744,6 +1867,285 @@ function TasksPanel({
           </table>
         </div>
       )}
+      {runTask && (
+        <div className="modal-backdrop">
+          <div className="modal modal-update">
+            <div className="update-header">
+              <div>
+                <h2>
+                  {runTask.name}
+                </h2>
+
+                <div className="server-host">
+                  Task Runs · {runTask.action}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setRunTask(null);
+                  setSelectedRun(null);
+                  setTaskRuns([]);
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            {loadingRuns ? (
+              <div className="loading">
+                Loading task runs…
+              </div>
+
+            ) : selectedRun ? (
+              <>
+                <div className="update-summary">
+                  <div>
+                    <span>Status</span>
+                    <strong>
+                      {selectedRun.status}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Successful</span>
+                    <strong>
+                      {selectedRun.success_count}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Failed</span>
+                    <strong>
+                      {selectedRun.failed_count}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Server</th>
+                        <th>Status</th>
+                        <th>Result</th>
+                        <th>Reboot</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {selectedRun.results.map(
+                        (result) => (
+                          <tr key={result.id}>
+                            <td>
+                              <strong>
+                                {result.server_name}
+                              </strong>
+
+                              <div className="server-host">
+                                {result.host}
+                              </div>
+                            </td>
+
+                            <td>
+                              <span
+                                className={
+                                  result.status === "SUCCESS"
+                                    ? "badge ok"
+                                    : "badge danger"
+                                }
+                              >
+                                {result.status}
+                              </span>
+                            </td>
+
+                            <td>
+                              {selectedRun.action === "CHECK" && (
+                                <>
+                                  <strong>
+                                    {result.update_count} update(s)
+                                  </strong>
+
+                                  {result.updates.length > 0 && (
+                                    <div className="task-run-packages">
+                                      {result.updates.map(
+                                        (pkg) => (
+                                          <div key={pkg}>
+                                            {pkg}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+
+                              {selectedRun.action === "INSTALL_ALL" && (
+                                <>
+                                  <strong>
+                                    {result.installed_count} installed
+                                  </strong>
+
+                                  {result.installed_packages.length > 0 && (
+                                    <div className="task-run-packages">
+                                      {result.installed_packages.map(
+                                        (pkg) => (
+                                          <div key={pkg}>
+                                            {pkg}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="server-host">
+                                    Remaining updates:{" "}
+                                    {result.remaining_updates}
+                                  </div>
+                                </>
+                              )}
+
+                              {selectedRun.action === "CLEANUP" && (
+                                <span>
+                                  Cleanup completed
+                                </span>
+                              )}
+
+                              {selectedRun.action === "REBOOT_CHECK" && (
+                                <span>
+                                  Reboot status checked
+                                </span>
+                              )}
+
+                              {result.error && (
+                                <div className="task-run-error">
+                                  {result.error}
+                                </div>
+                              )}
+                            </td>
+
+                            <td>
+                              <span
+                                className={
+                                  result.reboot_required
+                                    ? "badge warning"
+                                    : "badge ok"
+                                }
+                              >
+                                {result.reboot_required
+                                  ? "Required"
+                                  : "No"}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() =>
+                      setSelectedRun(null)
+                    }
+                  >
+                    Back to Runs
+                  </button>
+                </div>
+              </>
+
+            ) : taskRuns.length === 0 ? (
+              <div className="empty">
+                No task runs recorded yet.
+              </div>
+
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Started</th>
+                      <th>Status</th>
+                      <th>Targets</th>
+                      <th>Success</th>
+                      <th>Failed</th>
+                      <th>Updates</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {taskRuns.map(
+                      (run) => (
+                        <tr key={run.id}>
+                          <td>
+                            {formatDate(
+                              run.started_at
+                            )}
+                          </td>
+
+                          <td>
+                            <span
+                              className={
+                                run.status === "SUCCESS"
+                                  ? "badge ok"
+                                  : (
+                                      run.status === "PARTIAL"
+                                        ? "badge warning"
+                                        : "badge danger"
+                                    )
+                              }
+                            >
+                              {run.status}
+                            </span>
+                          </td>
+
+                          <td>
+                            {run.target_count}
+                          </td>
+
+                          <td>
+                            {run.success_count}
+                          </td>
+
+                          <td>
+                            {run.failed_count}
+                          </td>
+
+                          <td>
+                            {run.updates_found}
+                          </td>
+
+                          <td>
+                            <button
+                              type="button"
+                              className="button small"
+                              onClick={() =>
+                                void openRunDetail(
+                                  run.task_id,
+                                  run.id
+                                )
+                              }
+                            >
+                              Details
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </section>
   );
 }
@@ -4647,12 +5049,14 @@ function SettingsPanel({
 
 function HistoryPanel({
   history,
+  taskRuns = [],
   allowClear = false,
   retentionDays,
   onRetentionChange,
   onClear
 }: {
   history: HistoryEntry[];
+  taskRuns?: TaskRunSummary[];
   allowClear?: boolean;
   retentionDays?: number | null;
   onRetentionChange?: (
@@ -4660,6 +5064,77 @@ function HistoryPanel({
   ) => void;
   onClear?: () => void;
 }) {
+  const [selectedRun, setSelectedRun] =
+    useState<TaskRunDetail | null>(null);
+
+  const [loadingRun, setLoadingRun] =
+    useState(false);
+
+  const [runError, setRunError] =
+    useState<string | null>(null);
+
+
+  const combinedHistory = useMemo(
+    () => {
+      const manualEntries = history.map(
+        (entry) => ({
+          kind: "history" as const,
+          timestamp: entry.created_at,
+          entry
+        })
+      );
+
+      const taskEntries = taskRuns.map(
+        (run) => ({
+          kind: "task-run" as const,
+          timestamp: run.started_at,
+          run
+        })
+      );
+
+      return [
+        ...manualEntries,
+        ...taskEntries
+      ].sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime()
+          - new Date(a.timestamp).getTime()
+      );
+    },
+    [
+      history,
+      taskRuns
+    ]
+  );
+
+
+  async function openHistoryRun(
+    run: TaskRunSummary
+  ) {
+    setLoadingRun(true);
+    setRunError(null);
+
+    try {
+      const detail = await getTaskRun(
+        run.task_id,
+        run.id
+      );
+
+      setSelectedRun(detail);
+
+    } catch (err) {
+      setRunError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load task run details"
+      );
+
+    } finally {
+      setLoadingRun(false);
+    }
+  }
+
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -4737,7 +5212,7 @@ function HistoryPanel({
         )}
       </div>
 
-      {history.length === 0 ? (
+      {combinedHistory.length === 0 ? (
         <div className="empty">
           No history entries.
         </div>
@@ -4747,65 +5222,345 @@ function HistoryPanel({
             <thead>
               <tr>
                 <th>Time</th>
-                <th>Server</th>
+                <th>Source</th>
                 <th>Action</th>
                 <th>Status</th>
-                <th>Packages</th>
+                <th>Result</th>
                 <th>Reboot</th>
                 <th>Message</th>
+                <th></th>
               </tr>
             </thead>
 
             <tbody>
-              {history.map(
-                (entry) => (
-                  <tr key={entry.id}>
-                    <td>
-                      {formatDate(
-                        entry.created_at
-                      )}
-                    </td>
+              {combinedHistory.map(
+                (item) => {
+                  if (item.kind === "task-run") {
+                    const run = item.run;
 
-                    <td>
-                      {entry.server_name}
-                    </td>
-
-                    <td>
-                      {entry.action}
-                    </td>
-
-                    <td>
-                      <span
-                        className={
-                          entry.status === "SUCCESS"
-                            ? "badge ok"
-                            : "badge warning"
+                    return (
+                      <tr
+                        key={`task-run-${run.id}`}
+                        className="history-task-run-row"
+                        onClick={() =>
+                          void openHistoryRun(run)
                         }
                       >
-                        {entry.status}
-                      </span>
-                    </td>
+                        <td>
+                          {formatDate(
+                            run.started_at
+                          )}
+                        </td>
 
-                    <td>
-                      {entry.package_count}
-                    </td>
+                        <td>
+                          <strong>
+                            {run.task_name}
+                          </strong>
 
-                    <td>
-                      {entry.reboot_required
-                        ? "Required"
-                        : "No"}
-                    </td>
+                          <div className="server-host">
+                            {run.target_count} target(s)
+                          </div>
+                        </td>
 
-                    <td>
-                      {entry.message ?? ""}
-                    </td>
-                  </tr>
-                )
+                        <td>
+                          {run.action}
+                        </td>
+
+                        <td>
+                          <span
+                            className={
+                              run.status === "SUCCESS"
+                                ? "badge ok"
+                                : (
+                                    run.status === "PARTIAL"
+                                      ? "badge warning"
+                                      : "badge danger"
+                                  )
+                            }
+                          >
+                            {run.status}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div>
+                            {run.success_count} successful
+                          </div>
+
+                          <div>
+                            {run.failed_count} failed
+                          </div>
+
+                          {run.action === "CHECK" && (
+                            <div>
+                              {run.updates_found} update(s)
+                            </div>
+                          )}
+                        </td>
+
+                        <td>
+                          —
+                        </td>
+
+                        <td>
+                          Scheduled task run
+                        </td>
+
+                        <td>
+                          <span className="history-open-hint">
+                            Open
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const entry = item.entry;
+
+                  return (
+                    <tr key={`history-${entry.id}`}>
+                      <td>
+                        {formatDate(
+                          entry.created_at
+                        )}
+                      </td>
+
+                      <td>
+                        {entry.server_name}
+                      </td>
+
+                      <td>
+                        {entry.action}
+                      </td>
+
+                      <td>
+                        <span
+                          className={
+                            entry.status === "SUCCESS"
+                              ? "badge ok"
+                              : "badge warning"
+                          }
+                        >
+                          {entry.status}
+                        </span>
+                      </td>
+
+                      <td>
+                        {entry.package_count}
+                      </td>
+
+                      <td>
+                        {entry.reboot_required
+                          ? "Required"
+                          : "No"}
+                      </td>
+
+                      <td>
+                        {entry.message ?? ""}
+                      </td>
+
+                      <td></td>
+                    </tr>
+                  );
+                }
               )}
             </tbody>
           </table>
         </div>
       )}
+
+      {(loadingRun || selectedRun || runError) && (
+        <div className="modal-backdrop">
+          <div className="modal modal-update">
+            <div className="update-header">
+              <div>
+                <h2>
+                  History Run Details
+                </h2>
+
+                {selectedRun && (
+                  <div className="server-host">
+                    {selectedRun.task_name}
+                    {" · "}
+                    {selectedRun.action}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setSelectedRun(null);
+                  setRunError(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            {loadingRun ? (
+              <div className="loading">
+                Loading task run details…
+              </div>
+
+            ) : runError ? (
+              <div className="error-box">
+                {runError}
+              </div>
+
+            ) : selectedRun ? (
+              <>
+                <div className="update-summary">
+                  <div>
+                    <span>Status</span>
+                    <strong>
+                      {selectedRun.status}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Successful</span>
+                    <strong>
+                      {selectedRun.success_count}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Failed</span>
+                    <strong>
+                      {selectedRun.failed_count}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Server</th>
+                        <th>Status</th>
+                        <th>Result</th>
+                        <th>Reboot</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {selectedRun.results.map(
+                        (result) => (
+                          <tr key={result.id}>
+                            <td>
+                              <strong>
+                                {result.server_name}
+                              </strong>
+
+                              <div className="server-host">
+                                {result.host}
+                              </div>
+                            </td>
+
+                            <td>
+                              <span
+                                className={
+                                  result.status === "SUCCESS"
+                                    ? "badge ok"
+                                    : "badge danger"
+                                }
+                              >
+                                {result.status}
+                              </span>
+                            </td>
+
+                            <td>
+                              {selectedRun.action === "CHECK" && (
+                                <>
+                                  <strong>
+                                    {result.update_count} update(s)
+                                  </strong>
+
+                                  {result.updates.length > 0 && (
+                                    <div className="task-run-packages">
+                                      {result.updates.map(
+                                        (pkg) => (
+                                          <div key={pkg}>
+                                            {pkg}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+
+                              {selectedRun.action === "INSTALL_ALL" && (
+                                <>
+                                  <strong>
+                                    {result.installed_count} installed
+                                  </strong>
+
+                                  {result.installed_packages.length > 0 && (
+                                    <div className="task-run-packages">
+                                      {result.installed_packages.map(
+                                        (pkg) => (
+                                          <div key={pkg}>
+                                            {pkg}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="server-host">
+                                    Remaining updates:{" "}
+                                    {result.remaining_updates}
+                                  </div>
+                                </>
+                              )}
+
+                              {selectedRun.action === "CLEANUP" && (
+                                <span>
+                                  Cleanup completed
+                                </span>
+                              )}
+
+                              {selectedRun.action === "REBOOT_CHECK" && (
+                                <span>
+                                  Reboot status checked
+                                </span>
+                              )}
+
+                              {result.error && (
+                                <div className="task-run-error">
+                                  {result.error}
+                                </div>
+                              )}
+                            </td>
+
+                            <td>
+                              <span
+                                className={
+                                  result.reboot_required
+                                    ? "badge warning"
+                                    : "badge ok"
+                                }
+                              >
+                                {result.reboot_required
+                                  ? "Required"
+                                  : "No"}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
+
     </section>
   );
 }

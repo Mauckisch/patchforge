@@ -43,6 +43,7 @@ export interface ScheduledTask {
   day_of_month: number | null;
 
   enabled: boolean;
+  notify_only_on_updates: boolean;
 
   last_run_at: string | null;
   next_run_at: string | null;
@@ -50,6 +51,52 @@ export interface ScheduledTask {
   created_at: string;
   updated_at: string;
 }
+
+export interface TaskRunSummary {
+  id: number;
+  task_id: number;
+  task_name: string;
+  action: string;
+  status: "RUNNING" | "SUCCESS" | "PARTIAL" | "FAILED";
+
+  target_count: number;
+  success_count: number;
+  failed_count: number;
+  updates_found: number;
+
+  started_at: string;
+  completed_at: string | null;
+}
+
+
+export interface TaskRunResult {
+  id: number;
+
+  server_id: number;
+  server_name: string;
+  host: string;
+
+  status: "SUCCESS" | "FAILED";
+
+  update_count: number;
+  updates: string[];
+
+  installed_count: number;
+  installed_packages: string[];
+  remaining_updates: number;
+
+  cleanup_available: boolean | null;
+  reboot_required: boolean;
+
+  error: string | null;
+  completed_at: string;
+}
+
+
+export interface TaskRunDetail extends TaskRunSummary {
+  results: TaskRunResult[];
+}
+
 
 export interface HistoryEntry {
   id: number;

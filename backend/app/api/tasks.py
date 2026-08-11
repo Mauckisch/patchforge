@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -7,10 +8,16 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db
 from app.models.server import Server
 from app.models.task import ScheduledTask
+from app.models.task_run import (
+    TaskRun,
+    TaskRunResult,
+)
 from app.models.task_target import ScheduledTaskTarget
 from app.schemas.task import (
     TaskCreate,
     TaskResponse,
+    TaskRunDetailResponse,
+    TaskRunSummaryResponse,
     TaskUpdate,
 )
 from app.services.scheduler import (
@@ -66,6 +73,8 @@ def _response(
         "weekday": task.weekday,
         "day_of_month": task.day_of_month,
         "enabled": task.enabled,
+        "notify_only_on_updates":
+            task.notify_only_on_updates,
         "last_run_at": task.last_run_at,
         "next_run_at": task.next_run_at,
         "created_at": task.created_at,
@@ -170,6 +179,103 @@ def _replace_targets(
         )
 
 
+def _decode_json_list(
+    value: str | None,
+) -> list[str]:
+    if not value:
+        return []
+
+    try:
+        result = json.loads(
+            value
+        )
+
+    except (
+        json.JSONDecodeError,
+        TypeError,
+    ):
+        return []
+
+    if not isinstance(result, list):
+        return []
+
+    return [
+        str(item)
+        for item in result
+    ]
+
+
+def _run_summary_response(
+    run: TaskRun,
+) -> dict:
+    return {
+        "id": run.id,
+        "task_id": run.task_id,
+        "task_name": run.task_name,
+        "action": run.action,
+        "status": run.status,
+        "target_count": run.target_count,
+        "success_count": run.success_count,
+        "failed_count": run.failed_count,
+        "updates_found": run.updates_found,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+    }
+
+
+def _run_detail_response(
+    db: Session,
+    run: TaskRun,
+) -> dict:
+    results = list(
+        db.scalars(
+            select(TaskRunResult)
+            .where(
+                TaskRunResult.run_id == run.id
+            )
+            .order_by(
+                TaskRunResult.id
+            )
+        ).all()
+    )
+
+    response = _run_summary_response(
+        run
+    )
+
+    response["results"] = [
+        {
+            "id": result.id,
+            "server_id": result.server_id,
+            "server_name": result.server_name,
+            "host": result.host,
+            "status": result.status,
+            "update_count": result.update_count,
+            "updates": _decode_json_list(
+                result.updates_json
+            ),
+            "installed_count":
+                result.installed_count,
+            "installed_packages":
+                _decode_json_list(
+                    result.installed_packages_json
+                ),
+            "remaining_updates":
+                result.remaining_updates,
+            "cleanup_available":
+                result.cleanup_available,
+            "reboot_required":
+                result.reboot_required,
+            "error": result.error,
+            "completed_at":
+                result.completed_at,
+        }
+        for result in results
+    ]
+
+    return response
+
+
 @router.get(
     "",
     response_model=list[TaskResponse],
@@ -190,6 +296,61 @@ def list_tasks(
         _response(db, task)
         for task in tasks
     ]
+
+
+@router.get(
+    "/{task_id}/runs",
+    response_model=list[TaskRunSummaryResponse],
+)
+def list_task_runs(
+    task_id: int,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    runs = list(
+        db.scalars(
+            select(TaskRun)
+            .where(
+                TaskRun.task_id == task_id
+            )
+            .order_by(
+                TaskRun.started_at.desc()
+            )
+        ).all()
+    )
+
+    return [
+        _run_summary_response(run)
+        for run in runs
+    ]
+
+
+@router.get(
+    "/{task_id}/runs/{run_id}",
+    response_model=TaskRunDetailResponse,
+)
+def get_task_run(
+    task_id: int,
+    run_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    run = db.get(
+        TaskRun,
+        run_id,
+    )
+
+    if (
+        run is None
+        or run.task_id != task_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task run not found",
+        )
+
+    return _run_detail_response(
+        db,
+        run,
+    )
 
 
 @router.get(
@@ -250,6 +411,9 @@ def create_task(
         weekday=payload.weekday,
         day_of_month=payload.day_of_month,
         enabled=payload.enabled,
+        notify_only_on_updates=(
+            payload.notify_only_on_updates
+        ),
     )
 
     db.add(task)
@@ -362,6 +526,9 @@ def update_task(
     )
 
     task.enabled = payload.enabled
+    task.notify_only_on_updates = (
+        payload.notify_only_on_updates
+    )
 
     _replace_targets(
         db,

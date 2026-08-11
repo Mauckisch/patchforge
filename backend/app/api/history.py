@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db
 from app.models.history import HistoryEntry
 from app.models.server import Server
-from app.schemas.history import HistoryResponse
+from app.models.task_run import (
+    TaskRun,
+    TaskRunResult,
+)
+from app.schemas.history import (
+    HistoryResponse,
+    TaskRunHistoryResponse,
+)
 
 
 router = APIRouter(
@@ -29,8 +36,38 @@ def get_history(
     return list(
         db.scalars(
             select(HistoryEntry)
+            .where(
+                HistoryEntry.task_run_id.is_(None)
+            )
             .order_by(
                 HistoryEntry.created_at.desc()
+            )
+            .limit(limit)
+        ).all()
+    )
+
+
+@router.get(
+    "/api/history/task-runs",
+    response_model=list[TaskRunHistoryResponse],
+)
+def get_task_run_history(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+) -> list[TaskRun]:
+    limit = max(
+        1,
+        min(limit, 500),
+    )
+
+    return list(
+        db.scalars(
+            select(TaskRun)
+            .where(
+                TaskRun.status != "RUNNING"
+            )
+            .order_by(
+                TaskRun.started_at.desc()
             )
             .limit(limit)
         ).all()
@@ -46,6 +83,14 @@ def clear_history(
 ) -> Response:
     db.execute(
         delete(HistoryEntry)
+    )
+
+    db.execute(
+        delete(TaskRunResult)
+    )
+
+    db.execute(
+        delete(TaskRun)
     )
 
     db.commit()

@@ -10,7 +10,7 @@
 
 PatchForge for Linux is a focused web application for managing package updates on Linux servers.
 
-Current version: **1.5.0**
+Current version: **1.5.1**
 
 ## Features
 
@@ -32,6 +32,11 @@ Current version: **1.5.0**
 - Persistent update history
 - Configurable history retention
 - Scheduled update tasks
+- Multi-server task run tracking
+- Aggregated scheduled-task notifications
+- Per-server task run details
+- Configurable notification-only-on-updates behavior
+- Email and Discord notifications
 - Multi-server task targets
 - Central Settings page
 - Configurable default task timezone

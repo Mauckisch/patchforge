@@ -5,6 +5,40 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.5.1]
+
+### Added
+
+- Added persistent scheduled-task run history.
+- Added per-target task run results for multi-server scheduled tasks.
+- Added task run details showing individual server success and failure states.
+- Added package details for scheduled update checks.
+- Added installed-package details for scheduled Install All operations.
+- Added remaining-update and reboot-required information to task run details.
+- Added a configurable `Notify only when updates are found` option for update-check tasks.
+- Added task run history directly to the Tasks page.
+- Added combined task-run entries to the global History page.
+- Added clickable scheduled-task history rows that open the complete multi-server run details.
+
+### Changed
+
+- Multi-server scheduled tasks are now represented as a single logical task run instead of independent notification events for each target.
+- Scheduled-task notifications are aggregated into one summary notification per task run.
+- Aggregated notifications include target, success, failure, and update totals.
+- Failed target servers are listed inside the aggregated task notification.
+- Update-check task notifications can suppress successful runs when no updates are found.
+- Scheduled task history entries are linked to their parent task run.
+- Global History hides the internal per-server child entries of scheduled task runs and displays the aggregated task run instead.
+- Manual server operations continue to appear as individual History entries.
+- Task notification preferences are preserved when enabling or disabling a scheduled task.
+
+### Fixed
+
+- Fixed multi-server scheduled tasks generating one Discord or email notification per target server.
+- Fixed scheduled task execution appearing as multiple unrelated entries in the global History.
+- Fixed notification-only-on-updates configuration being lost when toggling a scheduled task.
+- Improved task run visibility and navigation between task history and per-server run details.
+
 ## [1.5.0]
 
 ### Added
