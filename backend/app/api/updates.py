@@ -754,6 +754,18 @@ def install_all_updates(
             ),
         )
 
+        send_notification_event(
+            db=db,
+            event_key=EVENT_INSTALL_SUCCESS,
+            title=f"Updates installed on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                f"Installed packages: {len(validated_packages)}\n"
+                f"Packages: {', '.join(validated_packages)}"
+            ),
+        )
+
         return {
             "server_id": server.id,
             "server": server.name,
@@ -906,6 +918,17 @@ def cleanup_server(
             package_count=0,
             reboot_required=server.reboot_required,
             message="Cleanup completed",
+        )
+
+        send_notification_event(
+            db=db,
+            event_key=EVENT_CLEANUP_SUCCESS,
+            title=f"Cleanup completed on {server.name}",
+            message=(
+                f"Server: {server.name}\n"
+                f"Host: {server.host}\n"
+                "Package cleanup completed successfully."
+            ),
         )
 
         return {

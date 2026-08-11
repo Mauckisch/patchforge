@@ -20,6 +20,11 @@ from app.services.update_locks import (
     filter_unlocked_updates,
     get_locked_package_names,
 )
+from app.services.notifications import (
+    EVENT_TASK_FAILED,
+    EVENT_TASK_SUCCESS,
+    send_notification_event,
+)
 from app.services.privilege import (
     _open_transport,
     detect_privilege_method,
@@ -431,6 +436,19 @@ def run_scheduled_task(
                     server,
                 )
 
+                send_notification_event(
+                    db=db,
+                    event_key=EVENT_TASK_SUCCESS,
+                    title=f"Scheduled task succeeded: {task.name}",
+                    message=(
+                        f"Task: {task.name}\n"
+                        f"Action: {task.action}\n"
+                        f"Server: {server.name}\n"
+                        f"Host: {server.host}\n"
+                        "Status: SUCCESS"
+                    ),
+                )
+
             except Exception as exc:
                 db.rollback()
 
@@ -449,6 +467,19 @@ def run_scheduled_task(
                         reboot_required=server.reboot_required,
                         message=(
                             f"Scheduled task failed: {exc}"
+                        ),
+                    )
+
+                    send_notification_event(
+                        db=db,
+                        event_key=EVENT_TASK_FAILED,
+                        title=f"Scheduled task failed: {task.name}",
+                        message=(
+                            f"Task: {task.name}\n"
+                            f"Action: {task.action}\n"
+                            f"Server: {server.name}\n"
+                            f"Host: {server.host}\n"
+                            f"Error: {exc}"
                         ),
                     )
 
