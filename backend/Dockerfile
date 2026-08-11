@@ -49,6 +49,7 @@ RUN pip install \
     -r requirements.txt
 
 COPY backend/app ./app
+COPY VERSION ./VERSION
 
 COPY --from=frontend-builder \
     /frontend/dist \

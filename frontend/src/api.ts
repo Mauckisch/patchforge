@@ -416,6 +416,21 @@ export function updateSettings(
 }
 
 
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+}
+
+
+export function getHealth(
+): Promise<HealthResponse> {
+  return request<HealthResponse>(
+    "/api/health"
+  );
+}
+
+
 export function getNotificationSettings(
 ): Promise<NotificationSettings> {
   return request<NotificationSettings>(
@@ -529,6 +544,42 @@ export function saveEmailNotificationSettings(
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
+    }
+  );
+}
+
+
+export function setDiscordNotificationEnabled(
+  enabled: boolean
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/discord/enabled",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        enabled
+      })
+    }
+  );
+}
+
+
+export function setEmailNotificationEnabled(
+  enabled: boolean
+): Promise<NotificationSettings> {
+  return request<NotificationSettings>(
+    "/api/notifications/settings/email/enabled",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        enabled
+      })
     }
   );
 }

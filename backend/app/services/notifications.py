@@ -610,6 +610,32 @@ def delete_email_settings(
     return settings
 
 
+def update_notification_channel_enabled(
+    db: Session,
+    channel: str,
+    enabled: bool,
+) -> NotificationSettings:
+    settings = get_notification_settings(
+        db
+    )
+
+    if channel == "discord":
+        settings.discord_enabled = enabled
+
+    elif channel == "email":
+        settings.email_enabled = enabled
+
+    else:
+        raise ValueError(
+            f"Unsupported notification channel: {channel}"
+        )
+
+    db.commit()
+    db.refresh(settings)
+
+    return settings
+
+
 def update_discord_settings(
     db: Session,
     discord_enabled: bool,

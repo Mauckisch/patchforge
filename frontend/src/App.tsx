@@ -18,6 +18,7 @@ import {
   deleteEmailNotificationSettings,
   discoverServer,
   getCredentialStatus,
+  getHealth,
   getHistory,
   getNotificationSettings,
   getRebootStatus,
@@ -39,6 +40,8 @@ import {
   saveDiscordNotificationSettings,
   saveEmailNotificationSettings,
   saveNotificationEventPreferences,
+  setDiscordNotificationEnabled,
+  setEmailNotificationEnabled,
   testNotification,
   updateNotificationSettings,
   updateServer,
@@ -104,6 +107,78 @@ function formatDate(
 }
 
 
+function formatTopbarDate(
+  date: Date,
+  timezone: string,
+): string {
+  try {
+    const parts = new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }
+    ).formatToParts(date);
+
+    const values = Object.fromEntries(
+      parts.map(
+        (part) => [
+          part.type,
+          part.value
+        ]
+      )
+    );
+
+    return (
+      `${values.year}-`
+      + `${values.month}-`
+      + `${values.day}`
+    );
+
+  } catch {
+    const year = date.getFullYear();
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  }
+}
+
+
+function formatTopbarTime(
+  date: Date,
+  timezone: string,
+): string {
+  try {
+    return new Intl.DateTimeFormat(
+      undefined,
+      {
+        timeZone: timezone,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }
+    ).format(date);
+
+  } catch {
+    return new Intl.DateTimeFormat(
+      undefined,
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }
+    ).format(date);
+  }
+}
+
+
 function getTimezones(): string[] {
   try {
     return Intl.supportedValuesOf(
@@ -121,6 +196,15 @@ function getTimezones(): string[] {
 function App() {
   const [page, setPage] =
     useState<Page>("dashboard");
+
+  const [showAbout, setShowAbout] =
+    useState(false);
+
+  const [currentTime, setCurrentTime] =
+    useState(() => new Date());
+
+  const [appVersion, setAppVersion] =
+    useState("unknown");
 
   const [servers, setServers] =
     useState<Server[]>([]);
@@ -191,13 +275,19 @@ function App() {
         serverData,
         taskData,
         historyData,
-        taskRunHistoryData
+        taskRunHistoryData,
+        healthData
       ] = await Promise.all([
         getServers(),
         getTasks(),
         getHistory(),
-        getTaskRunHistory()
+        getTaskRunHistory(),
+        getHealth()
       ]);
+
+      setAppVersion(
+        healthData.version
+      );
 
       setServers(serverData);
       setTasks(taskData);
@@ -266,6 +356,22 @@ function App() {
           statusTimer
         );
       }
+    };
+  }, []);
+
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => {
+        setCurrentTime(
+          new Date()
+        );
+      },
+      1000
+    );
+
+    return () => {
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -355,8 +461,8 @@ function App() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
-        <div className="brand">
+      <header className="app-topbar">
+        <div className="topbar-brand">
           <div className="brand-mark">
             <img
               src="/branding/patchforge-icon.svg"
@@ -371,11 +477,36 @@ function App() {
             </div>
 
             <div className="brand-version">
-              for Linux · v1.5.2
+              Linux Update Management
             </div>
           </div>
         </div>
 
+        <div className="topbar-clock">
+          <strong>
+            {formatTopbarDate(
+              currentTime,
+              taskTimezone
+            )}
+            {" "}
+            {formatTopbarTime(
+              currentTime,
+              taskTimezone
+            )}
+          </strong>
+
+          <span>
+            {taskTimezone}
+          </span>
+        </div>
+
+        <div
+          className="topbar-spacer"
+          aria-hidden="true"
+        />
+      </header>
+
+      <aside className="sidebar">
         <nav className="nav">
           {[
             ["dashboard", "Dashboard"],
@@ -403,14 +534,21 @@ function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <a
-            className="github-link"
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            className="sidebar-about"
+            onClick={() =>
+              setShowAbout(true)
+            }
           >
-            GitHub · Mauckisch/patchforge
-          </a>
+            <span className="sidebar-about-icon">
+              ⓘ
+            </span>
+
+            <span>
+              PatchForge v{appVersion}
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -426,9 +564,6 @@ function App() {
             </p>
           </div>
 
-          <div className="status-pill">
-            PatchForge v1.5.2
-          </div>
         </header>
 
         {error && (
@@ -559,6 +694,141 @@ function App() {
           </>
         )}
       </main>
+
+      {showAbout && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              setShowAbout(false);
+            }
+          }}
+        >
+          <div className="modal about-modal">
+            <div className="about-header">
+              <span>
+                PatchForge
+              </span>
+
+              <button
+                type="button"
+                className="about-close"
+                aria-label="Close"
+                onClick={() =>
+                  setShowAbout(false)
+                }
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="about-product">
+              <img
+                src="/branding/patchforge-icon.svg"
+                alt=""
+                className="about-logo"
+              />
+
+              <div>
+                <h2>
+                  PatchForge
+                </h2>
+
+                <div className="about-version">
+                  VERSION {appVersion}
+                </div>
+
+                <p>
+                  Linux Update Management
+                </p>
+              </div>
+            </div>
+
+            <div className="about-grid">
+              <div className="about-card">
+                <span>
+                  Frontend
+                </span>
+
+                <strong>
+                  React + TypeScript
+                </strong>
+              </div>
+
+              <div className="about-card">
+                <span>
+                  Backend
+                </span>
+
+                <strong>
+                  FastAPI
+                </strong>
+              </div>
+
+              <div className="about-card">
+                <span>
+                  Database
+                </span>
+
+                <strong>
+                  SQLite
+                </strong>
+              </div>
+
+              <div className="about-card">
+                <span>
+                  Project
+                </span>
+
+                <strong>
+                  PatchForge for Linux
+                </strong>
+              </div>
+            </div>
+
+            <div className="about-copyright">
+              <span>
+                Copyright
+              </span>
+
+              <strong>
+                © 2026 Dennis Mauckisch
+              </strong>
+            </div>
+
+            <div className="about-actions">
+              <a
+                className="button"
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+
+              <button
+                type="button"
+                className="button primary"
+                onClick={() =>
+                  setShowAbout(false)
+                }
+              >
+                Close
+              </button>
+            </div>
+
+            <span
+              className="about-a11y-marker"
+              aria-hidden="true"
+            >
+              PatchForge About
+            </span>
+          </div>
+        </div>
+      )}
 
       {deletingServer && (
         <div className="modal-backdrop">
@@ -4090,6 +4360,45 @@ const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
 };
 
 
+const NOTIFICATION_EVENT_DESCRIPTIONS: Record<string, string> = {
+  SERVER_OFFLINE:
+    "A managed server becomes unreachable.",
+
+  SERVER_ONLINE:
+    "A previously unavailable server becomes reachable again.",
+
+  SSH_ERROR:
+    "An SSH connection or authentication error occurs.",
+
+  UPDATES_AVAILABLE:
+    "Package updates are detected on a managed server.",
+
+  INSTALL_SUCCESS:
+    "An update installation completes successfully.",
+
+  INSTALL_FAILED:
+    "An update installation fails.",
+
+  CLEANUP_AVAILABLE:
+    "Removable package leftovers are detected.",
+
+  CLEANUP_SUCCESS:
+    "A package cleanup completes successfully.",
+
+  CLEANUP_FAILED:
+    "A package cleanup fails.",
+
+  REBOOT_REQUIRED:
+    "A managed server requires a reboot.",
+
+  TASK_SUCCESS:
+    "A scheduled task completes successfully.",
+
+  TASK_FAILED:
+    "A scheduled task completes with a failure."
+};
+
+
 function SettingsPanel({
   taskTimezone,
   onTaskTimezoneChange
@@ -4105,6 +4414,9 @@ function SettingsPanel({
 
   const [savingSettings, setSavingSettings] =
     useState(false);
+
+  const [savingEventKey, setSavingEventKey] =
+    useState<string | null>(null);
 
   const [testingDiscord, setTestingDiscord] =
     useState(false);
@@ -4188,37 +4500,155 @@ function SettingsPanel({
   }
 
 
-  function updateEventPreference(
+  async function updateEventPreference(
     eventKey: string,
     channel: "email" | "discord",
     enabled: boolean
   ) {
-    setSettings(
-      (current) => {
-        if (!current) {
-          return current;
-        }
+    if (!settings) {
+      return;
+    }
 
-        const events: NotificationEventPreference[] =
-          current.events.map(
-            (event) =>
-              event.event_key === eventKey
-                ? {
-                    ...event,
-                    [`${channel}_enabled`]:
-                      enabled
-                  }
-                : event
-          );
+    const previousEvents =
+      settings.events;
 
-        return {
-          ...current,
-          events
-        };
-      }
-    );
+    const nextEvents: NotificationEventPreference[] =
+      settings.events.map(
+        (event) =>
+          event.event_key === eventKey
+            ? {
+                ...event,
+                [`${channel}_enabled`]:
+                  enabled
+              }
+            : event
+      );
 
+    setSettings({
+      ...settings,
+      events: nextEvents
+    });
+
+    setSavingEventKey(eventKey);
+    setSettingsError(null);
     setSettingsSuccess(null);
+
+    try {
+      const result =
+        await saveNotificationEventPreferences(
+          nextEvents
+        );
+
+      setSettings(result);
+
+    } catch (err) {
+      setSettings(
+        (current) =>
+          current
+            ? {
+                ...current,
+                events: previousEvents
+              }
+            : current
+      );
+
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update notification event"
+      );
+
+    } finally {
+      setSavingEventKey(null);
+    }
+  }
+
+
+  async function toggleDiscordEnabled(
+    enabled: boolean
+  ) {
+    if (!settings) {
+      return;
+    }
+
+    const previous = settings.discord_enabled;
+
+    updateLocalSettings({
+      discord_enabled: enabled
+    });
+
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const result =
+        await setDiscordNotificationEnabled(
+          enabled
+        );
+
+      setSettings(result);
+
+      setSettingsSuccess(
+        enabled
+          ? "Discord notifications enabled."
+          : "Discord notifications disabled."
+      );
+
+    } catch (err) {
+      updateLocalSettings({
+        discord_enabled: previous
+      });
+
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update Discord notification status"
+      );
+    }
+  }
+
+
+  async function toggleEmailEnabled(
+    enabled: boolean
+  ) {
+    if (!settings) {
+      return;
+    }
+
+    const previous = settings.email_enabled;
+
+    updateLocalSettings({
+      email_enabled: enabled
+    });
+
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    try {
+      const result =
+        await setEmailNotificationEnabled(
+          enabled
+        );
+
+      setSettings(result);
+
+      setSettingsSuccess(
+        enabled
+          ? "Email notifications enabled."
+          : "Email notifications disabled."
+      );
+
+    } catch (err) {
+      updateLocalSettings({
+        email_enabled: previous
+      });
+
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update Email notification status"
+      );
+    }
   }
 
 
@@ -4320,40 +4750,6 @@ function SettingsPanel({
         err instanceof Error
           ? err.message
           : "Unable to save Email settings"
-      );
-
-    } finally {
-      setSavingSettings(false);
-    }
-  }
-
-
-  async function saveEventPreferences() {
-    if (!settings) {
-      return;
-    }
-
-    setSavingSettings(true);
-    setSettingsError(null);
-    setSettingsSuccess(null);
-
-    try {
-      const result =
-        await saveNotificationEventPreferences(
-          settings.events
-        );
-
-      setSettings(result);
-
-      setSettingsSuccess(
-        "Notification event preferences saved."
-      );
-
-    } catch (err) {
-      setSettingsError(
-        err instanceof Error
-          ? err.message
-          : "Unable to save event preferences"
       );
 
     } finally {
@@ -4619,20 +5015,27 @@ function SettingsPanel({
             </p>
           </div>
 
-          <label className="settings-toggle">
+          <label className="settings-switch">
+            <span>
+              Enabled
+            </span>
+
             <input
               type="checkbox"
+              role="switch"
               checked={settings.discord_enabled}
               onChange={(event) =>
-                updateLocalSettings({
-                  discord_enabled:
-                    event.target.checked
-                })
+                void toggleDiscordEnabled(
+                  event.target.checked
+                )
               }
             />
 
-            <span>
-              Enabled
+            <span
+              className="settings-switch-track"
+              aria-hidden="true"
+            >
+              <span className="settings-switch-thumb" />
             </span>
           </label>
         </div>
@@ -4731,20 +5134,27 @@ function SettingsPanel({
             </p>
           </div>
 
-          <label className="settings-toggle">
+          <label className="settings-switch">
+            <span>
+              Enabled
+            </span>
+
             <input
               type="checkbox"
+              role="switch"
               checked={settings.email_enabled}
               onChange={(event) =>
-                updateLocalSettings({
-                  email_enabled:
-                    event.target.checked
-                })
+                void toggleEmailEnabled(
+                  event.target.checked
+                )
               }
             />
 
-            <span>
-              Enabled
+            <span
+              className="settings-switch-track"
+              aria-hidden="true"
+            >
+              <span className="settings-switch-thumb" />
             </span>
           </label>
         </div>
@@ -4965,82 +5375,93 @@ function SettingsPanel({
           </div>
         </div>
 
-        <div className="table-wrap">
-          <table className="notification-event-table">
-            <thead>
-              <tr>
-                <th>Event</th>
-                <th>Email</th>
-                <th>Discord</th>
-              </tr>
-            </thead>
+        <div className="notification-event-grid">
+          {settings.events.map(
+            (event) => (
+              <div
+                key={event.event_key}
+                className={
+                  `notification-event-card ${
+                    savingEventKey === event.event_key
+                      ? "saving"
+                      : ""
+                  }`
+                }
+              >
+                <div className="notification-event-content">
+                  <div className="notification-event-name">
+                    {NOTIFICATION_EVENT_LABELS[
+                      event.event_key
+                    ] ?? event.event_key}
+                  </div>
 
-            <tbody>
-              {settings.events.map(
-                (event) => (
-                  <tr key={event.event_key}>
-                    <td>
-                      <div className="notification-event-name">
-                        {NOTIFICATION_EVENT_LABELS[
-                          event.event_key
-                        ] ?? event.event_key}
-                      </div>
+                  <div className="notification-event-description">
+                    {NOTIFICATION_EVENT_DESCRIPTIONS[
+                      event.event_key
+                    ] ?? event.event_key}
+                  </div>
+                </div>
 
-                      <div className="notification-event-key">
-                        {event.event_key}
-                      </div>
-                    </td>
+                <div className="notification-event-switches">
+                  <label className="event-switch">
+                    <span>
+                      Email
+                    </span>
 
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={event.email_enabled}
-                        onChange={(changeEvent) =>
-                          updateEventPreference(
-                            event.event_key,
-                            "email",
-                            changeEvent.target.checked
-                          )
-                        }
-                      />
-                    </td>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={event.email_enabled}
+                      disabled={savingEventKey !== null}
+                      onChange={(changeEvent) =>
+                        void updateEventPreference(
+                          event.event_key,
+                          "email",
+                          changeEvent.target.checked
+                        )
+                      }
+                    />
 
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={event.discord_enabled}
-                        onChange={(changeEvent) =>
-                          updateEventPreference(
-                            event.event_key,
-                            "discord",
-                            changeEvent.target.checked
-                          )
-                        }
-                      />
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+                    <span
+                      className="settings-switch-track"
+                      aria-hidden="true"
+                    >
+                      <span className="settings-switch-thumb" />
+                    </span>
+                  </label>
+
+                  <label className="event-switch">
+                    <span>
+                      Discord
+                    </span>
+
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={event.discord_enabled}
+                      disabled={savingEventKey !== null}
+                      onChange={(changeEvent) =>
+                        void updateEventPreference(
+                          event.event_key,
+                          "discord",
+                          changeEvent.target.checked
+                        )
+                      }
+                    />
+
+                    <span
+                      className="settings-switch-track"
+                      aria-hidden="true"
+                    >
+                      <span className="settings-switch-thumb" />
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )
+          )}
         </div>
       </section>
-
-
-      <div className="settings-save-bar">
-        <button
-          type="button"
-          className="button primary"
-          disabled={savingSettings}
-          onClick={() =>
-            void saveEventPreferences()
-          }
-        >
-          {savingSettings
-            ? "Saving…"
-            : "Save Event Preferences"}
-        </button>
-      </div>
     </div>
   );
 }

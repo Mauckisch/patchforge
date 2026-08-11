@@ -154,6 +154,10 @@ class EmailSettingsUpdate(BaseModel):
     email_recipients: list[str] = []
 
 
+class NotificationChannelEnabledUpdate(BaseModel):
+    enabled: bool
+
+
 class NotificationEventsUpdate(BaseModel):
     events: list[
         NotificationEventPreferenceUpdate

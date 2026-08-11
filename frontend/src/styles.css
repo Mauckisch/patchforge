@@ -1681,3 +1681,846 @@ td {
   white-space: nowrap;
   line-height: 1.35;
 }
+
+
+/* ============================================================
+   PatchForge Corporate Shell
+   ============================================================ */
+
+:root {
+  --patchforge-topbar-height: 64px;
+  --patchforge-sidebar-width: 250px;
+}
+
+
+/* ------------------------------------------------------------
+   Application layout
+   ------------------------------------------------------------ */
+
+.layout {
+  min-height: 100vh;
+  display: block;
+  padding-top: var(--patchforge-topbar-height);
+  padding-left: var(--patchforge-sidebar-width);
+}
+
+.app-topbar {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  right: 0;
+
+  height: var(--patchforge-topbar-height);
+
+  display: grid;
+  grid-template-columns:
+    var(--patchforge-sidebar-width)
+    minmax(0, 1fr)
+    var(--patchforge-sidebar-width);
+
+  align-items: center;
+
+  border-bottom: 1px solid #202923;
+
+  background:
+    rgba(14, 20, 17, 0.97);
+
+  backdrop-filter: blur(12px);
+}
+
+
+/* ------------------------------------------------------------
+   Brand area
+   ------------------------------------------------------------ */
+
+.topbar-brand {
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  padding: 0 18px;
+
+  border-right: 1px solid #202923;
+}
+
+.topbar-brand .brand-mark {
+  width: 38px;
+  height: 38px;
+}
+
+.topbar-brand .brand-logo {
+  width: 38px;
+  height: 38px;
+}
+
+.topbar-brand .brand-title {
+  font-size: 18px;
+}
+
+.topbar-brand .brand-version {
+  margin-top: 3px;
+
+  color: #7f9186;
+
+  font-size: 11px;
+}
+
+
+/* ------------------------------------------------------------
+   Clock
+   ------------------------------------------------------------ */
+
+.topbar-clock {
+  justify-self: center;
+
+  display: grid;
+  gap: 2px;
+
+  text-align: center;
+  line-height: 1.2;
+}
+
+.topbar-clock strong {
+  color: #dfe9e3;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.topbar-clock span {
+  color: #778980;
+
+  font-size: 11px;
+}
+
+.topbar-spacer {
+  min-width: 0;
+}
+
+
+/* ------------------------------------------------------------
+   Sidebar
+   ------------------------------------------------------------ */
+
+.sidebar {
+  position: fixed;
+
+  z-index: 90;
+
+  top: var(--patchforge-topbar-height);
+  bottom: 0;
+  left: 0;
+
+  width: var(--patchforge-sidebar-width);
+
+  height: auto;
+  min-height: 0;
+  max-height: none;
+
+  padding: 18px;
+
+  border-right: 1px solid #202923;
+  border-bottom: 0;
+
+  background: #0e1411;
+
+  overflow-y: auto;
+}
+
+.main {
+  width: 100%;
+  min-width: 0;
+
+  padding: 28px 32px 32px;
+}
+
+
+/* ------------------------------------------------------------
+   Sidebar version / About button
+   ------------------------------------------------------------ */
+
+.sidebar-footer {
+  margin-top: auto;
+
+  padding-top: 16px;
+
+  border-top: 1px solid #202923;
+}
+
+.sidebar-about {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #7f9186;
+
+  padding: 8px 6px;
+
+  text-align: left;
+
+  font-size: 12px;
+
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.sidebar-about:hover {
+  background: #162019;
+  color: #55e195;
+}
+
+.sidebar-about-icon {
+  flex: 0 0 auto;
+
+  font-size: 15px;
+}
+
+
+/* ============================================================
+   About dialog
+   ============================================================ */
+
+.about-modal {
+  width: min(620px, 96vw);
+
+  padding: 0;
+
+  overflow: hidden;
+}
+
+.about-header {
+  min-height: 58px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 18px;
+
+  border-bottom: 1px solid #202923;
+
+  color: #b9c7bf;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.about-close {
+  border: 0;
+
+  background: transparent;
+
+  color: #91a198;
+
+  padding: 4px 8px;
+
+  font-size: 28px;
+  line-height: 1;
+}
+
+.about-close:hover {
+  color: #ffffff;
+}
+
+.about-product {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+
+  padding: 26px 28px;
+
+  border-bottom: 1px solid #202923;
+}
+
+.about-logo {
+  width: 78px;
+  height: 78px;
+
+  object-fit: contain;
+
+  flex: 0 0 auto;
+
+  filter:
+    drop-shadow(
+      0 0 18px rgba(40, 199, 111, 0.22)
+    );
+}
+
+.about-product h2 {
+  margin: 0;
+
+  font-size: 28px;
+
+  letter-spacing: -0.03em;
+}
+
+.about-product p {
+  margin: 8px 0 0;
+
+  color: #83958b;
+
+  font-size: 14px;
+}
+
+.about-version {
+  width: fit-content;
+
+  margin-top: 7px;
+
+  border: 1px solid #235b3a;
+  border-radius: 999px;
+
+  background: #10271a;
+
+  color: #65e6a0;
+
+  padding: 5px 11px;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.about-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 12px;
+
+  padding: 20px 18px 0;
+}
+
+.about-card,
+.about-copyright {
+  display: grid;
+  gap: 5px;
+
+  border: 1px solid #26312b;
+  border-radius: 10px;
+
+  background: #111713;
+
+  padding: 15px 16px;
+}
+
+.about-card span,
+.about-copyright span {
+  color: #798b81;
+
+  font-size: 12px;
+}
+
+.about-card strong,
+.about-copyright strong {
+  color: #dbe5df;
+
+  font-size: 14px;
+}
+
+.about-copyright {
+  margin: 12px 18px 0;
+}
+
+.about-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-top: 20px;
+
+  padding: 18px;
+
+  border-top: 1px solid #202923;
+}
+
+.about-actions a {
+  text-decoration: none;
+}
+
+.about-a11y-marker {
+  display: none;
+}
+
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 900px) {
+  :root {
+    --patchforge-sidebar-width: 0px;
+  }
+
+  .layout {
+    padding-left: 0;
+  }
+
+  .app-topbar {
+    grid-template-columns:
+      minmax(180px, 1fr)
+      auto;
+  }
+
+  .topbar-brand {
+    border-right: 0;
+  }
+
+  .topbar-spacer {
+    display: none;
+  }
+
+  .sidebar {
+    position: static;
+
+    width: 100%;
+    height: auto;
+
+    padding: 14px 18px;
+
+    border-right: 0;
+    border-bottom: 1px solid #202923;
+  }
+
+  .sidebar-footer {
+    display: none;
+  }
+
+  .nav {
+    grid-template-columns:
+      repeat(5, minmax(0, 1fr));
+  }
+}
+
+
+@media (max-width: 650px) {
+  .topbar-brand .brand-version {
+    display: none;
+  }
+
+  .topbar-clock strong {
+    font-size: 11px;
+  }
+
+  .topbar-clock span {
+    font-size: 10px;
+  }
+
+  .main {
+    padding: 20px;
+  }
+
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ============================================================
+   Corporate shell responsive correction
+   Keep desktop sidebar layout on normal desktop widths
+   ============================================================ */
+
+@media (min-width: 701px) {
+  :root {
+    --patchforge-sidebar-width: 240px;
+  }
+
+  .layout {
+    padding-left: var(--patchforge-sidebar-width);
+  }
+
+  .app-topbar {
+    grid-template-columns:
+      var(--patchforge-sidebar-width)
+      minmax(0, 1fr)
+      var(--patchforge-sidebar-width);
+  }
+
+  .topbar-brand {
+    border-right: 1px solid #202923;
+  }
+
+  .topbar-spacer {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+
+    top: var(--patchforge-topbar-height);
+    bottom: 0;
+    left: 0;
+
+    width: var(--patchforge-sidebar-width);
+    height: auto;
+    min-height: 0;
+    max-height: none;
+
+    border-right: 1px solid #202923;
+    border-bottom: 0;
+
+    overflow-y: auto;
+  }
+
+  .sidebar-footer {
+    display: block;
+    margin-top: auto;
+  }
+
+  .nav {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ============================================================
+   PatchForge Corporate Shell - definitive sidebar layout
+   ============================================================ */
+
+@media (min-width: 701px) {
+  :root {
+    --patchforge-sidebar-width: 240px;
+  }
+
+  .layout {
+    min-height: 100vh;
+    padding-left: var(--patchforge-sidebar-width);
+    padding-top: var(--patchforge-topbar-height);
+  }
+
+  .sidebar {
+    position: fixed;
+    z-index: 90;
+
+    top: var(--patchforge-topbar-height);
+    bottom: auto;
+    left: 0;
+
+    width: var(--patchforge-sidebar-width);
+
+    height:
+      calc(
+        100vh
+        - var(--patchforge-topbar-height)
+      );
+
+    min-height:
+      calc(
+        100vh
+        - var(--patchforge-topbar-height)
+      );
+
+    max-height:
+      calc(
+        100vh
+        - var(--patchforge-topbar-height)
+      );
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 18px;
+
+    border-right: 1px solid #202923;
+    border-bottom: 0;
+
+    background: #0e1411;
+
+    overflow-y: auto;
+  }
+
+  .sidebar .nav {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+
+    flex: 0 0 auto;
+  }
+
+  .sidebar-footer {
+    display: block;
+
+    flex: 0 0 auto;
+
+    margin-top: auto;
+
+    padding-top: 16px;
+
+    border-top: 1px solid #202923;
+  }
+
+  .main {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+
+/* ============================================================
+   Notification channel switches
+   ============================================================ */
+
+.settings-switch {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  color: #dce6e0;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.settings-switch input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+
+  pointer-events: none;
+}
+
+.settings-switch-track {
+  position: relative;
+
+  width: 42px;
+  height: 22px;
+
+  flex: 0 0 auto;
+
+  border: 1px solid #34423a;
+  border-radius: 999px;
+
+  background: #1a211d;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.settings-switch-thumb {
+  position: absolute;
+
+  top: 3px;
+  left: 3px;
+
+  width: 14px;
+  height: 14px;
+
+  border-radius: 50%;
+
+  background: #83958b;
+
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.settings-switch input:checked
+  + .settings-switch-track {
+  border-color: #2cb969;
+
+  background: rgba(40, 199, 111, 0.24);
+}
+
+.settings-switch input:checked
+  + .settings-switch-track
+  .settings-switch-thumb {
+  transform: translateX(20px);
+
+  background: #55e195;
+}
+
+.settings-switch:hover
+  .settings-switch-track {
+  border-color: #4f6558;
+}
+
+.settings-switch input:focus-visible
+  + .settings-switch-track {
+  box-shadow:
+    0 0 0 3px rgba(44, 185, 105, 0.16);
+}
+
+
+/* ============================================================
+   Notification event cards
+   ============================================================ */
+
+.notification-event-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.notification-event-card {
+  min-width: 0;
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 22px;
+  align-items: center;
+
+  min-height: 92px;
+
+  padding: 16px 18px;
+
+  border: 1px solid #26312b;
+  border-radius: 10px;
+
+  background: #111713;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.notification-event-card:hover {
+  border-color: #34443a;
+  background: #121a15;
+}
+
+.notification-event-card.saving {
+  border-color: rgba(40, 199, 111, 0.35);
+}
+
+.notification-event-content {
+  min-width: 0;
+}
+
+.notification-event-name {
+  color: #e1e9e4;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.notification-event-description {
+  margin-top: 5px;
+
+  color: #778980;
+
+  font-size: 11px;
+  line-height: 1.45;
+
+  white-space: normal;
+}
+
+.notification-event-switches {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, auto);
+
+  gap: 18px;
+  align-items: center;
+}
+
+.event-switch {
+  position: relative;
+
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+
+  color: #8fa097;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.event-switch input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+
+  pointer-events: none;
+}
+
+.event-switch input:checked
+  + .settings-switch-track {
+  border-color: #2cb969;
+
+  background:
+    rgba(40, 199, 111, 0.24);
+}
+
+.event-switch input:checked
+  + .settings-switch-track
+  .settings-switch-thumb {
+  transform: translateX(20px);
+
+  background: #55e195;
+}
+
+.event-switch input:focus-visible
+  + .settings-switch-track {
+  box-shadow:
+    0 0 0 3px
+    rgba(44, 185, 105, 0.16);
+}
+
+.event-switch input:disabled
+  + .settings-switch-track {
+  opacity: 0.55;
+
+  cursor: wait;
+}
+
+.event-switch:has(input:disabled) {
+  cursor: wait;
+}
+
+
+@media (max-width: 1150px) {
+  .notification-event-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .notification-event-card {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-event-switches {
+    justify-content: start;
+  }
+
+  .event-switch {
+    justify-items: start;
+  }
+}

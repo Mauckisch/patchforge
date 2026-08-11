@@ -53,6 +53,16 @@ FRONTEND_DIR = Path(
     "/app/frontend"
 )
 
+VERSION_FILE = Path(
+    "/app/VERSION"
+)
+
+APP_VERSION = (
+    VERSION_FILE.read_text().strip()
+    if VERSION_FILE.exists()
+    else "unknown"
+)
+
 
 @asynccontextmanager
 async def lifespan(
@@ -67,7 +77,7 @@ async def lifespan(
 
 app = FastAPI(
     title="PatchForge for Linux",
-    version="1.5.2",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -88,7 +98,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "PatchForge for Linux",
-        "version": "1.5.2",
+        "version": APP_VERSION,
     }
 
 

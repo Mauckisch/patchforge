@@ -5,6 +5,48 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.0]
+
+### Added
+
+- Added a fixed corporate-style application top bar.
+- Added locale-aware time display using the configured PatchForge task timezone.
+- Added a clickable PatchForge version entry in the sidebar.
+- Added a dedicated About dialog with runtime application information.
+- Added notification channel toggle switches for Discord and Email.
+- Added automatic persistence when enabling or disabling Discord notifications.
+- Added automatic persistence when enabling or disabling Email notifications.
+- Added notification event cards with independent Email and Discord switches.
+- Added automatic persistence for notification event preferences.
+
+### Changed
+
+- Reworked the PatchForge application shell to provide a consistent corporate identity.
+- Moved PatchForge branding into the fixed top bar.
+- Moved version information to the bottom of the persistent sidebar.
+- Reworked notification event configuration from a table into a responsive two-column card layout.
+- Notification channel enable/disable changes no longer require a separate Save action.
+- Notification event preference changes no longer require a separate Save action.
+- Sidebar layout now remains fixed below the application top bar.
+- Top bar date format is now displayed as `YYYY-MM-DD`.
+- About dialog now shows the actual frontend, backend, database, and project technologies.
+- Application version information is now loaded dynamically from the backend health endpoint.
+
+### Fixed
+
+- Fixed notification settings requiring an additional save after toggling a notification channel.
+- Fixed notification event settings requiring a manual Save Event Preferences action.
+- Fixed sidebar layout ending prematurely on desktop-width layouts.
+- Fixed hardcoded frontend version information becoming outdated after releases.
+
+### Internal
+
+- Added dedicated backend endpoints for toggling Discord and Email notification channels without modifying unrelated notification configuration.
+- Added runtime version loading from the repository `VERSION` file.
+- Added the `VERSION` file to the final Docker image.
+- FastAPI application metadata and `/api/health` now use the same runtime version source.
+- Frontend version display now reads from `/api/health` instead of hardcoded values.
+
 ## [1.5.2]
 
 ### Fixed

@@ -8,6 +8,7 @@ from app.schemas.notification import (
     NotificationTestRequest,
     DiscordSettingsUpdate,
     EmailSettingsUpdate,
+    NotificationChannelEnabledUpdate,
     NotificationEventsUpdate,
 )
 from app.services.notifications import (
@@ -21,6 +22,7 @@ from app.services.notifications import (
     send_email_message,
     update_discord_settings,
     update_email_settings,
+    update_notification_channel_enabled,
     update_notification_events,
     update_notification_settings,
 )
@@ -224,6 +226,46 @@ def patch_email_settings(
         email_recipients=(
             payload.email_recipients
         ),
+    )
+
+    return notification_settings_response(
+        db,
+        settings,
+    )
+
+
+@router.patch(
+    "/settings/discord/enabled",
+    response_model=NotificationSettingsResponse,
+)
+def patch_discord_enabled(
+    payload: NotificationChannelEnabledUpdate,
+    db: Session = Depends(get_db),
+) -> dict:
+    settings = update_notification_channel_enabled(
+        db=db,
+        channel="discord",
+        enabled=payload.enabled,
+    )
+
+    return notification_settings_response(
+        db,
+        settings,
+    )
+
+
+@router.patch(
+    "/settings/email/enabled",
+    response_model=NotificationSettingsResponse,
+)
+def patch_email_enabled(
+    payload: NotificationChannelEnabledUpdate,
+    db: Session = Depends(get_db),
+) -> dict:
+    settings = update_notification_channel_enabled(
+        db=db,
+        channel="email",
+        enabled=payload.enabled,
     )
 
     return notification_settings_response(
