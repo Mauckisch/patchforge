@@ -5,6 +5,27 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.1]
+
+### Added
+
+- Added navigation icons for Dashboard, Servers, Task Scheduler, History, and Settings.
+- Added an Enable/Disable toggle directly to each scheduled task card.
+
+### Changed
+
+- Renamed the Tasks navigation entry and page title to Task Scheduler.
+- Reworked scheduled tasks from a table into individual responsive task cards.
+- Moved scheduled-task actions into a dedicated action bar below each task.
+- Scheduled task targets are now displayed in a compact card layout.
+- Reworked the Servers table so server actions are displayed in a dedicated row below each server.
+- Server and Task Scheduler action layouts now follow the same PatchForge interface style.
+
+### Fixed
+
+- Improved readability of scheduled tasks with multiple target servers.
+- Prevented server action buttons from consuming horizontal space in the server data table.
+
 ## [1.6.0]
 
 ### Added

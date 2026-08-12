@@ -1,5 +1,6 @@
 import {
   FormEvent,
+  Fragment,
   useEffect,
   useMemo,
   useState
@@ -445,7 +446,7 @@ function App() {
         return "Servers";
 
       case "tasks":
-        return "Tasks";
+        return "Task Scheduler";
 
       case "history":
         return "History";
@@ -509,26 +510,89 @@ function App() {
       <aside className="sidebar">
         <nav className="nav">
           {[
-            ["dashboard", "Dashboard"],
-            ["servers", "Servers"],
-            ["tasks", "Tasks"],
-            ["history", "History"],
-            ["settings", "Settings"]
-          ].map(([key, label]) => (
+            {
+              key: "dashboard",
+              label: "Dashboard",
+              icon: (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              )
+            },
+            {
+              key: "servers",
+              label: "Servers",
+              icon: (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="6" rx="2" />
+                  <rect x="3" y="14" width="18" height="6" rx="2" />
+                  <circle cx="7" cy="7" r="1" />
+                  <circle cx="7" cy="17" r="1" />
+                </svg>
+              )
+            },
+            {
+              key: "tasks",
+              label: "Task Scheduler",
+              icon: (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 8v4l3 2" />
+                </svg>
+              )
+            },
+            {
+              key: "history",
+              label: "History",
+              icon: (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12a8 8 0 1 0 2.3-5.7" />
+                  <path d="M4 4v5h5" />
+                  <path d="M12 8v5l3 2" />
+                </svg>
+              )
+            },
+            {
+              key: "settings",
+              label: "Settings",
+              icon: (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 3v2" />
+                  <path d="M12 19v2" />
+                  <path d="M3 12h2" />
+                  <path d="M19 12h2" />
+                  <path d="M5.6 5.6 7 7" />
+                  <path d="M17 17l1.4 1.4" />
+                  <path d="M18.4 5.6 17 7" />
+                  <path d="M7 17l-1.4 1.4" />
+                </svg>
+              )
+            }
+          ].map((item) => (
             <button
-              key={key}
+              key={item.key}
               className={
                 `nav-button ${
-                  page === key
+                  page === item.key
                     ? "active"
                     : ""
                 }`
               }
               onClick={() =>
-                setPage(key as Page)
+                setPage(item.key as Page)
               }
             >
-              {label}
+              <span className="nav-icon">
+                {item.icon}
+              </span>
+
+              <span>
+                {item.label}
+              </span>
             </button>
           ))}
         </nav>
@@ -1982,158 +2046,154 @@ function TasksPanel({
           No scheduled tasks.
         </div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Targets</th>
-                <th>Action</th>
-                <th>Schedule</th>
-                <th>Timezone</th>
-                <th>Last Run</th>
-                <th>Next Run</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+        <div className="task-scheduler-list">
+          {tasks.map((task) => {
+            const targetNames =
+              task.server_ids.map(
+                (serverId) =>
+                  servers.find(
+                    (server) =>
+                      server.id === serverId
+                  )?.name ?? `Server ${serverId}`
+              );
 
-            <tbody>
-              {tasks.map(
-                (task) => (
-                  <tr key={task.id}>
-                    <td>
-                      <strong>
-                        {task.name}
-                      </strong>
-                    </td>
+            return (
+              <article
+                key={task.id}
+                className="task-scheduler-card"
+              >
+                <div className="task-scheduler-card-header">
+                  <h3>
+                    {task.name}
+                  </h3>
 
-                    <td className="task-targets-cell">
-                      <div className="task-targets">
-                        {task.server_ids.map(
-                          (serverId) => (
-                            <div
-                              key={serverId}
-                              className="task-target"
-                            >
-                              {servers.find(
-                                (server) =>
-                                  server.id === serverId
-                              )?.name ?? `Server ${serverId}`}
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </td>
+                  <span
+                    className={
+                      task.enabled
+                        ? "task-state enabled"
+                        : "task-state disabled"
+                    }
+                  >
+                    {task.enabled
+                      ? "ENABLED"
+                      : "DISABLED"}
+                  </span>
+                </div>
 
-                    <td>
-                      {task.action}
-                    </td>
+                <div className="task-scheduler-meta">
+                  <div className="task-scheduler-target-section">
+                    <span>Targets</span>
 
-                    <td>
-                      {task.schedule_type}
-                    </td>
+                    <strong className="task-scheduler-targets">
+                      {targetNames.join(", ")}
+                    </strong>
+                  </div>
 
-                    <td>
-                      {task.timezone}
-                    </td>
+                  <div>
+                    <span>Action</span>
+                    <strong>{task.action}</strong>
+                  </div>
 
-                    <td>
-                      {formatDate(
-                        task.last_run_at
-                      )}
-                    </td>
+                  <div>
+                    <span>Schedule</span>
+                    <strong>{task.schedule_type}</strong>
+                  </div>
 
-                    <td>
-                      {formatDate(
-                        task.next_run_at
-                      )}
-                    </td>
+                  <div>
+                    <span>Timezone</span>
+                    <strong>{task.timezone}</strong>
+                  </div>
 
-                    <td>
-                      <span
-                        className={
-                          task.enabled
-                            ? "badge ok"
-                            : "badge warning"
+                  <div>
+                    <span>Last Run</span>
+                    <strong>
+                      {formatDate(task.last_run_at)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Next Run</span>
+                    <strong>
+                      {formatDate(task.next_run_at)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="task-scheduler-actions">
+                  <div className="task-scheduler-toggle-area">
+                    <strong>Actions</strong>
+
+                    <label className="task-enable-switch">
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={task.enabled}
+                        disabled={busyTask === task.id}
+                        onChange={() =>
+                          void toggleTask(task)
                         }
+                      />
+
+                      <span
+                        className="task-enable-track"
+                        aria-hidden="true"
                       >
+                        <span className="task-enable-thumb" />
+                      </span>
+
+                      <span className="task-enable-label">
                         {task.enabled
                           ? "Enabled"
                           : "Disabled"}
                       </span>
-                    </td>
+                    </label>
+                  </div>
 
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          className="button small"
-                          disabled={
-                            busyTask === task.id
-                          }
-                          onClick={() =>
-                            void openRuns(task)
-                          }
-                        >
-                          Runs
-                        </button>
+                  <div className="task-scheduler-buttons">
+                    <button
+                      className="button small"
+                      disabled={busyTask === task.id}
+                      onClick={() =>
+                        void openRuns(task)
+                      }
+                    >
+                      Runs
+                    </button>
 
-                        <button
-                          className="button small"
-                          disabled={
-                            busyTask === task.id
-                          }
-                          onClick={() =>
-                            onEdit(task)
-                          }
-                        >
-                          Edit
-                        </button>
+                    <button
+                      className="button small"
+                      disabled={busyTask === task.id}
+                      onClick={() =>
+                        onEdit(task)
+                      }
+                    >
+                      Edit
+                    </button>
 
-                        <button
-                          className="button small"
-                          disabled={
-                            busyTask === task.id
-                          }
-                          onClick={() =>
-                            void runNow(task)
-                          }
-                        >
-                          Run Now
-                        </button>
+                    <button
+                      className="button danger small"
+                      disabled={busyTask === task.id}
+                      onClick={() =>
+                        void removeTask(task)
+                      }
+                    >
+                      Delete
+                    </button>
 
-                        <button
-                          className="button small"
-                          disabled={
-                            busyTask === task.id
-                          }
-                          onClick={() =>
-                            void toggleTask(task)
-                          }
-                        >
-                          {task.enabled
-                            ? "Disable"
-                            : "Enable"}
-                        </button>
-
-                        <button
-                          className="button danger small"
-                          disabled={
-                            busyTask === task.id
-                          }
-                          onClick={() =>
-                            void removeTask(task)
-                          }
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+                    <button
+                      className="button primary small"
+                      disabled={busyTask === task.id}
+                      onClick={() =>
+                        void runNow(task)
+                      }
+                    >
+                      Run Now
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
       {runTask && (
@@ -4191,141 +4251,157 @@ function ServerPanel({
                   <th>Updates</th>
                   <th>Reboot</th>
                   <th>Cleanup</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredServers.map(
                   (server) => (
-                    <tr key={server.id}>
-                      <td>
-                        <div className="server-list-name">
-                          {server.name}
-                        </div>
+                    <Fragment key={server.id}>
+                      <tr
+                        key={`server-${server.id}`}
+                        className="server-data-row"
+                      >
+                        <td>
+                          <div className="server-list-name">
+                            {server.name}
+                          </div>
 
-                        <div className="server-list-host">
-                          {server.host}
-                        </div>
-                      </td>
+                          <div className="server-list-host">
+                            {server.host}
+                          </div>
+                        </td>
 
-                      <td className="server-list-distribution">
-                        {server.distribution ??
-                          "Unknown"}
-                      </td>
-
-                      <td>
-                        <span
-                          className={
-                            server.package_manager
-                              ? `package-manager-badge ${server.package_manager}`
-                              : "package-manager-badge unknown"
-                          }
-                        >
-                          {server.package_manager
-                            ?.toUpperCase() ??
+                        <td className="server-list-distribution">
+                          {server.distribution ??
                             "Unknown"}
-                        </span>
-                      </td>
+                        </td>
 
-                      <td>
-                        <span
-                          className={connectionStatusClass(
-                            server.connection_status
-                          )}
-                        >
-                          {connectionStatusLabel(
-                            server.connection_status
-                          )}
-                        </span>
-                      </td>
-
-                      <td className="server-list-kernel">
-                        {server.kernel_version ??
-                          "Unknown"}
-                      </td>
-
-                      <td>
-                        <div className="server-list-updates">
-                          <strong
+                        <td>
+                          <span
                             className={
-                              server.updates_available > 0
-                                ? "text-warning"
-                                : ""
+                              server.package_manager
+                                ? `package-manager-badge ${server.package_manager}`
+                                : "package-manager-badge unknown"
                             }
                           >
-                            {server.updates_available}
-                          </strong>
+                            {server.package_manager
+                              ?.toUpperCase() ??
+                              "Unknown"}
+                          </span>
+                        </td>
 
-                          <span>
-                            {server.updates_available === 1
-                              ? "update"
-                              : "updates"}
+                        <td>
+                          <span
+                            className={connectionStatusClass(
+                              server.connection_status
+                            )}
+                          >
+                            {connectionStatusLabel(
+                              server.connection_status
+                            )}
                           </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td>
-                        {server.reboot_required ? (
-                          <span className="badge warning">
-                            Required
-                          </span>
-                        ) : (
-                          <span className="badge ok">
-                            No
-                          </span>
-                        )}
-                      </td>
+                        <td className="server-list-kernel">
+                          {server.kernel_version ??
+                            "Unknown"}
+                        </td>
 
-                      <td>
-                        {server.cleanup_available === true ? (
-                          <span className="cleanup-status available">
-                            Available
-                          </span>
-                        ) : server.cleanup_available === false ? (
-                          <span className="cleanup-status clean">
-                            Clean
-                          </span>
-                        ) : (
-                          <span className="badge neutral">
-                            Unknown
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="server-list-actions">
-                          {server.connection_status ===
-                            "ONLINE" && (
-                            <button
-                              className="button primary"
-                              onClick={() =>
-                                onUpdates(server)
+                        <td>
+                          <div className="server-list-updates">
+                            <strong
+                              className={
+                                server.updates_available > 0
+                                  ? "text-warning"
+                                  : ""
                               }
                             >
-                              Updates
-                            </button>
+                              {server.updates_available}
+                            </strong>
+
+                            <span>
+                              {server.updates_available === 1
+                                ? "update"
+                                : "updates"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          {server.reboot_required ? (
+                            <span className="badge warning">
+                              Required
+                            </span>
+                          ) : (
+                            <span className="badge ok">
+                              No
+                            </span>
                           )}
+                        </td>
 
-                          <button
-                            className="button"
-                            onClick={() =>
-                              onEdit(server)
-                            }
-                          >
-                            Edit
-                          </button>
+                        <td>
+                          {server.cleanup_available === true ? (
+                            <span className="cleanup-status available">
+                              Available
+                            </span>
+                          ) : server.cleanup_available === false ? (
+                            <span className="cleanup-status clean">
+                              Clean
+                            </span>
+                          ) : (
+                            <span className="badge neutral">
+                              Unknown
+                            </span>
+                          )}
+                        </td>
+                      </tr>
 
-                          <button
-                            className="button danger"
-                            onClick={() =>
-                              onDelete(server)
-                            }
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                      <tr
+                        key={`server-actions-${server.id}`}
+                        className="server-actions-row"
+                      >
+                        <td colSpan={8}>
+                          <div className="server-actions-bar">
+                            <span className="server-actions-label">
+                              Actions
+                            </span>
+
+                            <div className="server-list-actions">
+                              {server.connection_status ===
+                                "ONLINE" && (
+                                <button
+                                  className="button primary"
+                                  onClick={() =>
+                                    onUpdates(server)
+                                  }
+                                >
+                                  Updates
+                                </button>
+                              )}
+
+                              <button
+                                className="button"
+                                onClick={() =>
+                                  onEdit(server)
+                                }
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                className="button danger"
+                                onClick={() =>
+                                  onDelete(server)
+                                }
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </Fragment>
                   )
                 )}
               </tbody>
