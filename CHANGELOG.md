@@ -5,6 +5,20 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.2]
+
+### Changed
+
+- Improved the Servers overview for higher browser and operating-system display scaling.
+- Server table columns now adapt dynamically to the available width.
+- Distribution and kernel information can wrap when horizontal space is limited.
+- Server table spacing, typography, badges, and status indicators become more compact on smaller effective viewport widths.
+
+### Fixed
+
+- Prevented unnecessary horizontal scrolling in the Servers overview at increased display scaling.
+- Removed the fixed desktop minimum width that forced the server table to overflow.
+
 ## [1.6.1]
 
 ### Added

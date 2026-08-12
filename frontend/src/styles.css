@@ -2846,3 +2846,182 @@ td {
     flex-wrap: wrap;
   }
 }
+
+
+/* ============================================================
+   Responsive Server Table
+   Prevent horizontal scrolling at higher UI scaling
+   ============================================================ */
+
+.server-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+/*
+ * Distribute the available width across the eight server
+ * information columns. The action row uses colspan=8 and
+ * therefore remains unaffected.
+ */
+.server-table th:nth-child(1),
+.server-table td:nth-child(1) {
+  width: 16%;
+}
+
+.server-table th:nth-child(2),
+.server-table td:nth-child(2) {
+  width: 17%;
+}
+
+.server-table th:nth-child(3),
+.server-table td:nth-child(3) {
+  width: 11%;
+}
+
+.server-table th:nth-child(4),
+.server-table td:nth-child(4) {
+  width: 11%;
+}
+
+.server-table th:nth-child(5),
+.server-table td:nth-child(5) {
+  width: 20%;
+}
+
+.server-table th:nth-child(6),
+.server-table td:nth-child(6) {
+  width: 8%;
+}
+
+.server-table th:nth-child(7),
+.server-table td:nth-child(7) {
+  width: 8.5%;
+}
+
+.server-table th:nth-child(8),
+.server-table td:nth-child(8) {
+  width: 8.5%;
+}
+
+
+/* Allow long values to use the available cell width */
+
+.server-table td {
+  min-width: 0;
+}
+
+.server-list-name,
+.server-list-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-list-distribution {
+  max-width: none;
+  overflow-wrap: anywhere;
+  white-space: normal !important;
+}
+
+.server-list-kernel {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal !important;
+  line-height: 1.35;
+}
+
+
+/*
+ * Medium available width, including desktop systems using
+ * increased browser or operating-system scaling.
+ */
+@media (max-width: 1400px) {
+  .server-table th {
+    padding: 10px 9px;
+    font-size: 10px;
+  }
+
+  .server-table td {
+    padding: 11px 9px;
+  }
+
+  .server-list-name {
+    font-size: 13px;
+  }
+
+  .server-list-kernel {
+    font-size: 11px;
+  }
+
+  .package-manager-badge {
+    min-width: 38px;
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .cleanup-status,
+  .server-table .badge {
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+}
+
+
+/* More compact layout when effective viewport width gets smaller */
+
+@media (max-width: 1150px) {
+  .server-table th {
+    padding: 9px 6px;
+    font-size: 9px;
+  }
+
+  .server-table td {
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+
+  .server-list-name {
+    font-size: 12px;
+  }
+
+  .server-list-host {
+    font-size: 10px;
+  }
+
+  .server-list-kernel {
+    font-size: 10px;
+  }
+
+  .server-list-updates strong {
+    font-size: 12px;
+  }
+
+  .package-manager-badge {
+    min-width: 34px;
+    padding: 3px 5px;
+    font-size: 9px;
+  }
+
+  .cleanup-status,
+  .server-table .badge {
+    padding: 3px 6px;
+    font-size: 9px;
+  }
+
+  .server-actions-bar {
+    padding: 9px 10px 10px;
+  }
+}
+
+
+/*
+ * Only very small layouts retain horizontal scrolling as a
+ * final fallback. Normal desktop scaling should not reach this.
+ */
+@media (max-width: 760px) {
+  .server-table {
+    min-width: 720px;
+    table-layout: fixed;
+  }
+}
