@@ -57,10 +57,11 @@ jobs:
           import re
 
           version = os.environ["RELEASE_VERSION"]
+          changelog_version = version.removeprefix("v")
           changelog = Path("CHANGELOG.md").read_text()
 
           pattern = re.compile(
-              rf"^## \[{re.escape(version)}\]\n"
+              rf"^## \[{re.escape(changelog_version)}\]\n"
               rf"(.*?)(?=^## \[|\Z)",
               re.MULTILINE | re.DOTALL,
           )
