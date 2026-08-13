@@ -25,6 +25,7 @@ class UnsupportedDistributionError(DiscoveryError):
 @dataclass
 class DiscoveryResult:
     hostname: str
+    fqdn: str
     distribution: str
     distribution_version: str
     package_manager: str
@@ -255,6 +256,18 @@ def discover_server(
                 "hostname",
             )
 
+            try:
+                fqdn = _execute_fixed_command(
+                    transport,
+                    "hostname -f",
+                )
+
+            except DiscoveryError:
+                fqdn = hostname
+
+            if not fqdn:
+                fqdn = hostname
+
             architecture = _execute_fixed_command(
                 transport,
                 "uname -m",
@@ -270,6 +283,7 @@ def discover_server(
 
         return DiscoveryResult(
             hostname=hostname,
+            fqdn=fqdn,
             distribution=distribution_name,
             distribution_version=distribution_version,
             package_manager=package_manager,
@@ -282,6 +296,119 @@ def discover_server(
         HostKeyMismatchError,
         AuthenticationError,
         UnsupportedDistributionError,
+    ):
+        raise
+
+    except (
+        socket.timeout,
+        TimeoutError,
+        ConnectionError,
+        OSError,
+        paramiko.SSHException,
+    ) as exc:
+        raise DiscoveryError(
+            f"SSH connection failed: {exc}"
+        ) from exc
+
+    finally:
+        if transport is not None:
+            transport.close()
+
+        if sock is not None:
+            sock.close()
+
+
+@dataclass
+class HostnameDiscoveryResult:
+    hostname: str
+    fqdn: str
+    domain: str
+    host_key_fingerprint: str
+
+
+def discover_hostname(
+    host: str,
+    port: int,
+    username: str,
+    password: str,
+    expected_host_key: str | None = None,
+) -> HostnameDiscoveryResult:
+    sock = None
+    transport = None
+
+    try:
+        sock = socket.create_connection(
+            (host, port),
+            timeout=10,
+        )
+
+        transport = paramiko.Transport(sock)
+        transport.start_client(timeout=10)
+
+        remote_key = transport.get_remote_server_key()
+        fingerprint = _fingerprint_sha256(
+            remote_key
+        )
+
+        if (
+            expected_host_key is not None
+            and expected_host_key != fingerprint
+        ):
+            raise HostKeyMismatchError(
+                "SSH host key has changed"
+            )
+
+        try:
+            transport.auth_password(
+                username=username,
+                password=password,
+            )
+
+        except paramiko.AuthenticationException as exc:
+            raise AuthenticationError(
+                "SSH authentication failed"
+            ) from exc
+
+        if not transport.is_authenticated():
+            raise AuthenticationError(
+                "SSH authentication failed"
+            )
+
+        hostname = _execute_fixed_command(
+            transport,
+            "hostname",
+        )
+
+        try:
+            fqdn = _execute_fixed_command(
+                transport,
+                "hostname -f",
+            )
+
+        except DiscoveryError:
+            fqdn = hostname
+
+        if not fqdn:
+            fqdn = hostname
+
+        domain = ""
+
+        if "." in fqdn:
+            domain = fqdn.split(
+                ".",
+                1,
+            )[1]
+
+        return HostnameDiscoveryResult(
+            hostname=hostname,
+            fqdn=fqdn,
+            domain=domain,
+            host_key_fingerprint=fingerprint,
+        )
+
+    except (
+        HostKeyMismatchError,
+        AuthenticationError,
     ):
         raise
 

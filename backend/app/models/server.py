@@ -36,6 +36,18 @@ class Server(Base):
         nullable=False,
     )
 
+    use_system_hostname: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    use_fqdn: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
     system_hostname: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,

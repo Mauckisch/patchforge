@@ -4,10 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ServerCreate(BaseModel):
-    name: str = Field(
-        min_length=1,
+    name: str | None = Field(
+        default=None,
         max_length=100,
     )
+
+    use_system_hostname: bool = False
+    use_fqdn: bool = False
+
 
     host: str = Field(
         min_length=1,
@@ -29,9 +33,11 @@ class ServerCreate(BaseModel):
 class ServerUpdate(BaseModel):
     name: str | None = Field(
         default=None,
-        min_length=1,
         max_length=100,
     )
+
+    use_system_hostname: bool | None = None
+    use_fqdn: bool | None = None
 
     host: str | None = Field(
         default=None,
@@ -64,6 +70,8 @@ class ServerResponse(BaseModel):
     ssh_port: int
     username: str
 
+    use_system_hostname: bool
+    use_fqdn: bool
     system_hostname: str | None
 
     distribution: str | None
@@ -84,3 +92,9 @@ class ServerResponse(BaseModel):
 
     created_at: datetime
     updated_at: datetime
+
+
+class HostnamePreviewResponse(BaseModel):
+    hostname: str
+    fqdn: str
+    domain: str

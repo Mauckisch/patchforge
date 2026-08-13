@@ -35,6 +35,7 @@ import {
   installSelectedUpdates,
   lockUpdatePackage,
   privilegeCheck,
+  previewServerHostname,
   unlockUpdatePackage,
   runTaskNow,
   setServerCredentials,
@@ -2494,6 +2495,18 @@ function EditServerModal({
   const [name, setName] =
     useState(server.name);
 
+  const [useSystemHostname, setUseSystemHostname] =
+    useState(server.use_system_hostname);
+
+  const [useFqdn, setUseFqdn] =
+    useState(server.use_fqdn);
+
+  const [systemHostname, setSystemHostname] =
+    useState(server.system_hostname);
+
+  const [refreshingHostname, setRefreshingHostname] =
+    useState(false);
+
   const [host, setHost] =
     useState(server.host);
 
@@ -2574,6 +2587,41 @@ function EditServerModal({
   }, [server.id]);
 
 
+  async function refreshHostname() {
+    setRefreshingHostname(true);
+
+    setStatusText(
+      "Refreshing hostname…"
+    );
+
+    try {
+      const result = await previewServerHostname(
+        server.id
+      );
+
+      setSystemHostname(
+        result.fqdn || result.hostname
+      );
+
+      setStatusText(
+        "Hostname refreshed."
+      );
+
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Unable to refresh hostname"
+      );
+
+      setStatusText("");
+
+    } finally {
+      setRefreshingHostname(false);
+    }
+  }
+
+
   async function submit(
     event: FormEvent
   ) {
@@ -2597,12 +2645,19 @@ function EditServerModal({
 
       await updateServer(
         server.id,
-        {
-          name,
-          host,
-          ssh_port: sshPort,
-          username
-        }
+          {
+            name:
+              useSystemHostname
+                ? null
+                : name,
+            use_system_hostname:
+              useSystemHostname,
+            use_fqdn:
+              useFqdn,
+            host,
+            ssh_port: sshPort,
+            username
+          }
       );
 
       if (credentialChangeRequested) {
@@ -2633,6 +2688,7 @@ function EditServerModal({
       if (
         connectionChanged
         || credentialChangeRequested
+        || useSystemHostname
       ) {
         setStatusText(
           "Running discovery…"
@@ -2689,8 +2745,14 @@ function EditServerModal({
             <span>Name</span>
 
             <input
-              required
+              required={!useSystemHostname}
+              disabled={useSystemHostname}
               value={name}
+              placeholder={
+                useSystemHostname
+                  ? "Detected automatically from server"
+                  : "Server name"
+              }
               onChange={(event) =>
                 setName(
                   event.target.value
@@ -2698,6 +2760,68 @@ function EditServerModal({
               }
             />
           </label>
+
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={useSystemHostname}
+              onChange={(event) =>
+                setUseSystemHostname(
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>
+              Use hostname reported by server
+            </span>
+          </label>
+
+            {useSystemHostname && (
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={useFqdn}
+                  onChange={(event) =>
+                    setUseFqdn(
+                      event.target.checked
+                    )
+                  }
+                />
+
+                <span>
+                  Use fully qualified domain name (FQDN)
+                </span>
+              </label>
+            )}
+
+          <div className="hostname-refresh form-full">
+            <div className="hostname-refresh-info">
+              <span>
+                Current system hostname
+              </span>
+
+              <strong>
+                {systemHostname ?? "Not detected"}
+              </strong>
+            </div>
+
+            <button
+              type="button"
+              className="button"
+              disabled={
+                saving ||
+                refreshingHostname
+              }
+              onClick={() =>
+                void refreshHostname()
+              }
+            >
+              {refreshingHostname
+                ? "Refreshing…"
+                : "Refresh Hostname"}
+            </button>
+          </div>
 
           <label>
             <span>Host / IP</span>
@@ -2894,6 +3018,15 @@ function AddServerModal({
   onCreated: () => Promise<void>;
 }) {
   const [name, setName] = useState("");
+
+  const [
+    useSystemHostname,
+    setUseSystemHostname
+  ] = useState(true);
+
+  const [useFqdn, setUseFqdn] =
+    useState(false);
+
   const [host, setHost] = useState("");
   const [sshPort, setSshPort] = useState(22);
   const [username, setUsername] = useState("");
@@ -2931,7 +3064,14 @@ function AddServerModal({
 
     try {
       createdServer = await createServer({
-        name,
+        name:
+          useSystemHostname
+            ? null
+            : name,
+        use_system_hostname:
+          useSystemHostname,
+          use_fqdn:
+            useFqdn,
         host,
         ssh_port: sshPort,
         username
@@ -3001,14 +3141,55 @@ function AddServerModal({
         >
           <label>
             <span>Name</span>
+
             <input
-              required
+              required={!useSystemHostname}
+              disabled={useSystemHostname}
               value={name}
+              placeholder={
+                useSystemHostname
+                  ? "Detected automatically from server"
+                  : "Server name"
+              }
               onChange={(event) =>
                 setName(event.target.value)
               }
             />
           </label>
+
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={useSystemHostname}
+              onChange={(event) =>
+                setUseSystemHostname(
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>
+              Use hostname reported by server
+            </span>
+          </label>
+
+          {useSystemHostname && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={useFqdn}
+                onChange={(event) =>
+                  setUseFqdn(
+                    event.target.checked
+                  )
+                }
+              />
+
+              <span>
+                Use fully qualified domain name (FQDN)
+              </span>
+            </label>
+          )}
 
           <label>
             <span>Host / IP</span>

@@ -5,6 +5,8 @@ export interface Server {
   ssh_port: number;
   username: string;
 
+  use_system_hostname: boolean;
+  use_fqdn: boolean;
   system_hostname: string | null;
 
   distribution: string | null;

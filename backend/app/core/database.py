@@ -50,6 +50,16 @@ def run_database_migrations() -> None:
         )
 
         migrations = {
+            "use_system_hostname":
+                "ALTER TABLE servers "
+                "ADD COLUMN use_system_hostname BOOLEAN "
+                "NOT NULL DEFAULT 0",
+
+            "use_fqdn":
+                "ALTER TABLE servers "
+                "ADD COLUMN use_fqdn BOOLEAN "
+                "NOT NULL DEFAULT 0",
+
             "system_hostname":
                 "ALTER TABLE servers "
                 "ADD COLUMN system_hostname VARCHAR(255)",

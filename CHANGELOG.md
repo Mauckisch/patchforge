@@ -5,6 +5,26 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.3]
+
+### Added
+
+- Added an option to use the hostname reported by a managed server as its PatchForge server name.
+- Added optional fully qualified domain name (FQDN) usage for automatically detected server names.
+- Added hostname and FQDN selection to both the Add Server and Edit Server dialogs.
+- Added manual hostname refresh in the Edit Server dialog.
+
+### Changed
+
+- Automatic server naming can now use either the short system hostname or the fully qualified domain name.
+- Hostname discovery now stores the detected FQDN while selecting the configured short hostname or FQDN for the displayed server name.
+- Improved application scrollbars to better match the dark PatchForge interface.
+
+### Fixed
+
+- Refreshing the detected hostname no longer implicitly saves the server configuration or closes the Edit Server dialog.
+- Changing automatic hostname or FQDN preferences now triggers discovery so the displayed server name is updated correctly.
+
 ## [1.6.2]
 
 ### Changed

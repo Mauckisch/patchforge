@@ -170,7 +170,9 @@ export function deleteServer(
 
 
 export interface CreateServerPayload {
-  name: string;
+  name?: string | null;
+  use_system_hostname: boolean;
+  use_fqdn: boolean;
   host: string;
   ssh_port: number;
   username: string;
@@ -326,7 +328,9 @@ export function runTaskNow(
 
 
 export interface UpdateServerPayload {
-  name?: string;
+  name?: string | null;
+  use_system_hostname?: boolean;
+  use_fqdn?: boolean;
   host?: string;
   ssh_port?: number;
   username?: string;
@@ -717,6 +721,25 @@ export function unlockUpdatePackage(
     `/api/servers/${serverId}/updates/locks/${encodeURIComponent(packageName)}`,
     {
       method: "DELETE"
+    }
+  );
+}
+
+
+export interface HostnamePreviewResponse {
+  hostname: string;
+  fqdn: string;
+  domain: string;
+}
+
+
+export function previewServerHostname(
+  serverId: number
+): Promise<HostnamePreviewResponse> {
+  return request<HostnamePreviewResponse>(
+    `/api/servers/${serverId}/hostname-preview`,
+    {
+      method: "POST"
     }
   );
 }

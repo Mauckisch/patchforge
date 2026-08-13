@@ -64,11 +64,36 @@ def create_server(
     payload: ServerCreate,
     db: Session = Depends(get_db),
 ) -> Server:
+    host = payload.host.strip()
+    name = (
+        payload.name.strip()
+        if payload.name is not None
+        else ""
+    )
+
+    if (
+        not payload.use_system_hostname
+        and not name
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Server name is required when automatic "
+                "hostname detection is disabled"
+            ),
+        )
+
     server = Server(
-        name=payload.name.strip(),
-        host=payload.host.strip(),
+        name=name or host[:100],
+        host=host,
         ssh_port=payload.ssh_port,
         username=payload.username.strip(),
+        use_system_hostname=(
+            payload.use_system_hostname
+        ),
+        use_fqdn=(
+            payload.use_fqdn
+        ),
     )
 
     db.add(server)
@@ -102,8 +127,32 @@ def update_server(
     old_port = server.ssh_port
     old_username = server.username
 
-    if payload.name is not None:
-        server.name = payload.name.strip()
+    if payload.use_system_hostname is not None:
+        server.use_system_hostname = (
+            payload.use_system_hostname
+        )
+
+    if payload.use_fqdn is not None:
+        server.use_fqdn = (
+            payload.use_fqdn
+        )
+
+    if (
+        payload.name is not None
+        and not server.use_system_hostname
+    ):
+        name = payload.name.strip()
+
+        if not name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Server name is required when automatic "
+                    "hostname detection is disabled"
+                ),
+            )
+
+        server.name = name
 
     if payload.host is not None:
         server.host = payload.host.strip()
