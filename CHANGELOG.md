@@ -5,6 +5,21 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.4]
+
+### Changed
+
+- Scheduled update checks now persist the discovered package update snapshot.
+- Update snapshots are now refreshed after scheduled Install All operations.
+- Update snapshots are now refreshed after scheduled Cleanup operations.
+- Scheduled task results now use the same actionable update count as the Servers overview.
+
+### Fixed
+
+- Fixed available updates found by Task Scheduler or Run Now not appearing in the corresponding server Updates view.
+- Fixed the Servers overview showing an update count while the detailed Updates view still showed an outdated or empty package list.
+- Fixed scheduled update checks requiring an additional manual Check Updates operation before package details became visible.
+
 ## [1.6.3]
 
 ### Added

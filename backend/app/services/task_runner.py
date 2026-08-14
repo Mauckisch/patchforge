@@ -25,6 +25,9 @@ from app.services.update_locks import (
     filter_unlocked_updates,
     get_locked_package_names,
 )
+from app.services.update_snapshot import (
+    replace_update_snapshot,
+)
 from app.services.notifications import (
     EVENT_TASK_FAILED,
     EVENT_TASK_SUCCESS,
@@ -184,13 +187,35 @@ def _run_for_server(
                 transport
             )
 
+            locked_packages = (
+                get_locked_package_names(
+                    db,
+                    server.id,
+                )
+            )
+
+            unlocked_updates = (
+                filter_unlocked_updates(
+                    updates,
+                    locked_packages,
+                )
+            )
+
+            replace_update_snapshot(
+                db,
+                server,
+                updates,
+                [],
+                locked_packages,
+            )
+
             update_names = [
                 str(update["name"])
-                for update in updates
+                for update in unlocked_updates
             ]
 
             server.updates_available = len(
-                updates
+                unlocked_updates
             )
 
             server.cleanup_available = (
@@ -206,21 +231,21 @@ def _run_for_server(
                 server=server,
                 action=ACTION_CHECK,
                 status=STATUS_SUCCESS,
-                package_count=len(updates),
+                package_count=len(unlocked_updates),
                 reboot_required=server.reboot_required,
                 task_run_id=task_run_id,
                 message=(
                     f"Scheduled check: "
-                    f"{len(updates)} update(s) available"
+                    f"{len(unlocked_updates)} update(s) available"
                 ),
             )
 
             return {
-                "update_count": len(updates),
+                "update_count": len(unlocked_updates),
                 "updates": update_names,
                 "installed_count": 0,
                 "installed_packages": [],
-                "remaining_updates": len(updates),
+                "remaining_updates": len(unlocked_updates),
                 "cleanup_available":
                     cleanup_available,
                 "reboot_required":
@@ -274,7 +299,7 @@ def _run_for_server(
                     privilege_password,
                 )
 
-            remaining_updates = (
+            remaining_all_updates = (
                 updater.list_updates(
                     transport
                 )
@@ -287,9 +312,17 @@ def _run_for_server(
                 )
             )
 
+            replace_update_snapshot(
+                db,
+                server,
+                remaining_all_updates,
+                [],
+                locked_packages,
+            )
+
             remaining_updates = (
                 filter_unlocked_updates(
-                    remaining_updates,
+                    remaining_all_updates,
                     locked_packages,
                 )
             )
@@ -353,7 +386,7 @@ def _run_for_server(
                 privilege_password,
             )
 
-            remaining_updates = (
+            remaining_all_updates = (
                 updater.list_updates(
                     transport
                 )
@@ -366,9 +399,17 @@ def _run_for_server(
                 )
             )
 
+            replace_update_snapshot(
+                db,
+                server,
+                remaining_all_updates,
+                [],
+                locked_packages,
+            )
+
             remaining_updates = (
                 filter_unlocked_updates(
-                    remaining_updates,
+                    remaining_all_updates,
                     locked_packages,
                 )
             )
