@@ -156,7 +156,10 @@ function formatTopbarDate(
 function formatTopbarTime(
   date: Date,
   timezone: string,
+  timeFormat: "24h" | "12h",
 ): string {
+  const hour12 = timeFormat === "12h";
+
   try {
     return new Intl.DateTimeFormat(
       undefined,
@@ -165,6 +168,7 @@ function formatTopbarTime(
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        hour12,
       }
     ).format(date);
 
@@ -175,6 +179,7 @@ function formatTopbarTime(
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        hour12,
       }
     ).format(date);
   }
@@ -262,6 +267,17 @@ function App() {
           .timeZone
         || "UTC"
       );
+    });
+
+  const [timeFormat, setTimeFormat] =
+    useState<"24h" | "12h">(() => {
+      const saved = localStorage.getItem(
+        "patchforge-time-format"
+      );
+
+      return saved === "12h"
+        ? "12h"
+        : "24h";
     });
 
   const [editingTask, setEditingTask] =
@@ -493,7 +509,8 @@ function App() {
             {" "}
             {formatTopbarTime(
               currentTime,
-              taskTimezone
+              taskTimezone,
+              timeFormat
             )}
           </strong>
 
@@ -752,6 +769,15 @@ function App() {
                 localStorage.setItem(
                   "patchforge-task-timezone",
                   timezone
+                );
+              }}
+              timeFormat={timeFormat}
+              onTimeFormatChange={(format) => {
+                setTimeFormat(format);
+
+                localStorage.setItem(
+                  "patchforge-time-format",
+                  format
                 );
               }}
             />
@@ -4658,11 +4684,22 @@ const NOTIFICATION_EVENT_DESCRIPTIONS: Record<string, string> = {
 
 function SettingsPanel({
   taskTimezone,
-  onTaskTimezoneChange
+  onTaskTimezoneChange,
+  timeFormat,
+  onTimeFormatChange
 }: {
   taskTimezone: string;
   onTaskTimezoneChange: (timezone: string) => void;
+  timeFormat: "24h" | "12h";
+  onTimeFormatChange: (
+    format: "24h" | "12h"
+  ) => void;
 }) {
+  const [activeTab, setActiveTab] =
+    useState<"regional" | "notifications">(
+      "regional"
+    );
+
   const [settings, setSettings] =
     useState<NotificationSettings | null>(null);
 
@@ -5213,52 +5250,145 @@ function SettingsPanel({
         </div>
       )}
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2 className="panel-title">
-              General
-            </h2>
+      <div
+        className="settings-tabs"
+        role="tablist"
+        aria-label="Settings sections"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "regional"}
+          className={
+            `settings-tab ${
+              activeTab === "regional"
+                ? "active"
+                : ""
+            }`
+          }
+          onClick={() =>
+            setActiveTab("regional")
+          }
+        >
+          Regional
+        </button>
 
-            <p className="settings-description">
-              Global application defaults.
-            </p>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "notifications"}
+          className={
+            `settings-tab ${
+              activeTab === "notifications"
+                ? "active"
+                : ""
+            }`
+          }
+          onClick={() =>
+            setActiveTab("notifications")
+          }
+        >
+          Notifications
+        </button>
+      </div>
+
+      {activeTab === "regional" && (
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">
+                Regional
+              </h2>
+
+              <p className="settings-description">
+                Configure time display and scheduling defaults.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="settings-form-grid">
-          <label>
-            <span>Default Task Timezone</span>
+          <div className="settings-form-grid settings-regional-grid">
+            <div className="settings-regional-field">
+              <span className="settings-field-label">
+                Time Format
+              </span>
 
-            <select
-              value={taskTimezone}
-              onChange={(event) =>
-                onTaskTimezoneChange(
-                  event.target.value
-                )
-              }
-            >
-              {getTimezones().map(
-                (zone) => (
-                  <option
-                    key={zone}
-                    value={zone}
-                  >
-                    {zone}
-                  </option>
-                )
-              )}
-            </select>
+              <div
+                className="settings-segmented"
+                role="group"
+                aria-label="Time format"
+              >
+                <button
+                  type="button"
+                  className={
+                    `settings-segment ${
+                      timeFormat === "24h"
+                        ? "active"
+                        : ""
+                    }`
+                  }
+                  onClick={() =>
+                    onTimeFormatChange("24h")
+                  }
+                >
+                  24-hour
+                </button>
 
-            <small className="form-help">
-              Used as the default timezone when creating
-              new scheduled tasks.
-            </small>
-          </label>
-        </div>
-      </section>
+                <button
+                  type="button"
+                  className={
+                    `settings-segment ${
+                      timeFormat === "12h"
+                        ? "active"
+                        : ""
+                    }`
+                  }
+                  onClick={() =>
+                    onTimeFormatChange("12h")
+                  }
+                >
+                  12-hour
+                </button>
+              </div>
 
+              <small className="form-help">
+                Controls the time format used in the PatchForge interface.
+              </small>
+            </div>
 
+            <label>
+              <span>Default Task Timezone</span>
+
+              <select
+                value={taskTimezone}
+                onChange={(event) =>
+                  onTaskTimezoneChange(
+                    event.target.value
+                  )
+                }
+              >
+                {getTimezones().map(
+                  (zone) => (
+                    <option
+                      key={zone}
+                      value={zone}
+                    >
+                      {zone}
+                    </option>
+                  )
+                )}
+              </select>
+
+              <small className="form-help">
+                Used as the default timezone when creating
+                new scheduled tasks.
+              </small>
+            </label>
+          </div>
+        </section>
+      )}
+
+      {activeTab === "notifications" && (
+        <>
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -5719,6 +5849,8 @@ function SettingsPanel({
           )}
         </div>
       </section>
+        </>
+      )}
     </div>
   );
 }

@@ -5,6 +5,21 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.5]
+
+### Added
+
+- Added Regional and Notifications tabs to the Settings page.
+- Added an explicit 24-hour / 12-hour time-format selector.
+- Added persistent browser-side storage for the selected time format.
+
+### Changed
+
+- Moved the default task timezone setting into the new Regional settings tab.
+- Grouped Discord, Email, and Notification Events under the Notifications tab.
+- The PatchForge top-bar clock now follows the configured 24-hour or 12-hour display format.
+- Improved Settings page organization and navigation.
+
 ## [1.6.4]
 
 ### Changed
