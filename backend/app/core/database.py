@@ -74,6 +74,42 @@ def run_database_migrations() -> None:
                 "ADD COLUMN updates_available INTEGER "
                 "NOT NULL DEFAULT 0",
 
+            "operation_status":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_status VARCHAR(30) "
+                "NOT NULL DEFAULT 'IDLE'",
+
+            "operation_type":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_type VARCHAR(50)",
+
+            "operation_progress":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_progress INTEGER "
+                "NOT NULL DEFAULT 0",
+
+            "operation_current":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_current INTEGER "
+                "NOT NULL DEFAULT 0",
+
+            "operation_total":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_total INTEGER "
+                "NOT NULL DEFAULT 0",
+
+            "operation_current_package":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_current_package VARCHAR(255)",
+
+            "operation_message":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_message TEXT",
+
+            "operation_started_at":
+                "ALTER TABLE servers "
+                "ADD COLUMN operation_started_at DATETIME",
+
             "cleanup_available":
                 "ALTER TABLE servers "
                 "ADD COLUMN cleanup_available BOOLEAN",

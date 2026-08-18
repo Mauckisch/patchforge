@@ -10,7 +10,7 @@
 
 PatchForge for Linux is a focused web application for managing package updates on Linux servers.
 
-Current version: **1.6.5**
+Current version: **1.6.6**
 
 ## Features
 

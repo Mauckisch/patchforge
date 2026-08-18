@@ -5,6 +5,29 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.6]
+
+### Added
+
+- Added background execution for manual package update installations.
+- Added persistent per-server operation state for running update installations.
+- Added live installation progress for APT-based systems.
+- Added installation progress, current package, and operation status to the Servers overview.
+- Added faster server-state polling while update operations are running.
+
+### Changed
+
+- Manual Install Selected and Install All operations now return immediately after the background operation has started.
+- Update installations no longer require the Updates dialog to remain open while packages are being installed.
+- Multiple managed servers can now run independent update installations without blocking the user interface.
+- APT installations now use machine-readable package-manager progress information instead of simulated progress.
+- Server operation state is refreshed every two seconds while an installation is running.
+
+### Fixed
+
+- Fixed the Servers overview layout so update progress information no longer overlaps the Reboot column.
+- Running operations left behind by an application restart are now handled as interrupted operations instead of remaining permanently marked as running.
+
 ## [1.6.5]
 
 ### Added

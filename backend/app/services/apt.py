@@ -1,4 +1,5 @@
 import re
+import time
 
 import paramiko
 
@@ -61,6 +62,128 @@ def _execute(
             exit_status,
             _decode(stdout_raw).strip(),
             _decode(stderr_raw).strip(),
+        )
+
+    finally:
+        channel.close()
+
+
+def _execute_streaming(
+    transport: paramiko.Transport,
+    command: str,
+    stdin_data: str | None = None,
+    timeout: int = 120,
+    line_callback=None,
+) -> tuple[int, str, str]:
+    channel = transport.open_session(
+        timeout=10
+    )
+
+    stdout_parts: list[str] = []
+    stderr_parts: list[str] = []
+
+    stdout_buffer = ""
+    stderr_buffer = ""
+
+    started_at = time.monotonic()
+
+    try:
+        channel.exec_command(command)
+
+        if stdin_data is not None:
+            channel.sendall(
+                stdin_data.encode("utf-8")
+            )
+            channel.shutdown_write()
+
+        while True:
+            if (
+                time.monotonic()
+                - started_at
+                > timeout
+            ):
+                raise AptError(
+                    "APT command timed out"
+                )
+
+            received_data = False
+
+            while channel.recv_ready():
+                received_data = True
+
+                chunk = _decode(
+                    channel.recv(32768)
+                )
+
+                stdout_parts.append(chunk)
+                stdout_buffer += chunk
+
+                while "\n" in stdout_buffer:
+                    line, stdout_buffer = (
+                        stdout_buffer.split(
+                            "\n",
+                            1,
+                        )
+                    )
+
+                    if line_callback is not None:
+                        line_callback(
+                            line.rstrip("\r")
+                        )
+
+            while channel.recv_stderr_ready():
+                received_data = True
+
+                chunk = _decode(
+                    channel.recv_stderr(32768)
+                )
+
+                stderr_parts.append(chunk)
+                stderr_buffer += chunk
+
+                while "\n" in stderr_buffer:
+                    line, stderr_buffer = (
+                        stderr_buffer.split(
+                            "\n",
+                            1,
+                        )
+                    )
+
+                    if line_callback is not None:
+                        line_callback(
+                            line.rstrip("\r")
+                        )
+
+            if channel.exit_status_ready():
+                if (
+                    not channel.recv_ready()
+                    and not channel.recv_stderr_ready()
+                ):
+                    break
+
+            if not received_data:
+                time.sleep(0.05)
+
+        if stdout_buffer:
+            if line_callback is not None:
+                line_callback(
+                    stdout_buffer.rstrip("\r")
+                )
+
+        if stderr_buffer:
+            if line_callback is not None:
+                line_callback(
+                    stderr_buffer.rstrip("\r")
+                )
+
+        exit_status = (
+            channel.recv_exit_status()
+        )
+
+        return (
+            exit_status,
+            "".join(stdout_parts).strip(),
+            "".join(stderr_parts).strip(),
         )
 
     finally:
@@ -356,6 +479,7 @@ def install_updates(
     packages: list[str],
     privilege_method: str,
     privilege_password: str | None,
+    progress_callback=None,
 ) -> None:
     if not packages:
         raise AptError(
@@ -373,19 +497,70 @@ def install_updates(
                 "DEBIAN_FRONTEND="
                 "noninteractive "
                 "apt-get install -y "
+                "-o APT::Status-Fd=3 "
                 "--only-upgrade "
-                f"{package_arguments}"
+                f"{package_arguments} "
+                "3>&1"
             ),
             privilege_method,
             privilege_password,
         )
     )
 
-    status, stdout, stderr = _execute(
+    def handle_line(line: str) -> None:
+        if progress_callback is None:
+            return
+
+        stripped = line.strip()
+
+        if not stripped:
+            return
+
+        if not stripped.startswith(
+            "pmstatus:"
+        ):
+            return
+
+        parts = stripped.split(
+            ":",
+            3,
+        )
+
+        if len(parts) != 4:
+            return
+
+        _, package_name, percent_raw, description = (
+            parts
+        )
+
+        try:
+            percent = float(
+                percent_raw
+            )
+        except ValueError:
+            return
+
+        progress_callback({
+            "package": (
+                package_name.strip()
+                or None
+            ),
+            "percent": max(
+                0.0,
+                min(
+                    100.0,
+                    percent,
+                ),
+            ),
+            "message": description.strip(),
+        })
+
+    status, stdout, stderr = _execute_streaming(
         transport,
         command,
         stdin_data=stdin_data,
         timeout=1800,
+        line_callback=handle_line,
     )
 
     if status != 0:

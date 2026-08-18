@@ -17,6 +17,7 @@ from app.api.tasks import router as tasks_router
 from app.api.updates import router as updates_router
 from app.core.database import (
     Base,
+    SessionLocal,
     engine,
     run_database_migrations,
 )
@@ -40,6 +41,9 @@ from app.models.task_target import ScheduledTaskTarget
 from app.services.scheduler import (
     start_scheduler,
     stop_scheduler,
+)
+from app.services.server_operation import (
+    reset_interrupted_operations,
 )
 
 
@@ -68,6 +72,13 @@ APP_VERSION = (
 async def lifespan(
     app: FastAPI,
 ):
+    db = SessionLocal()
+
+    try:
+        reset_interrupted_operations(db)
+    finally:
+        db.close()
+
     start_scheduler()
 
     yield

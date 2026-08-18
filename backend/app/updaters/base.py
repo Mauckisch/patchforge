@@ -41,6 +41,7 @@ class BaseUpdater(ABC):
         packages: list[str],
         privilege_method: str,
         privilege_password: str | None,
+        progress_callback=None,
     ) -> None:
         raise NotImplementedError
 

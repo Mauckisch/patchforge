@@ -48,6 +48,13 @@ from app.services.update_locks import (
     unlock_package,
     update_server_actionable_count,
 )
+from app.services.server_operation import (
+    ServerOperationBusyError,
+)
+from app.services.update_worker import (
+    UpdateWorkerBusyError,
+    start_update_worker,
+)
 
 
 router = APIRouter(
@@ -493,7 +500,10 @@ def check_updates(
         )
 
 
-@router.post("/{server_id}/updates/install")
+@router.post(
+    "/{server_id}/updates/install",
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def install_selected_updates(
     server_id: int,
     payload: InstallUpdatesRequest,
@@ -504,129 +514,42 @@ def install_selected_updates(
         db,
     )
 
+    if not payload.packages:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No packages selected for installation",
+        )
+
     try:
-        (
-            updater,
-            transport,
-            method,
-            privilege_password,
-        ) = _open_update_session(
-            server,
-            db,
+        start_update_worker(
+            server.id,
+            packages=list(payload.packages),
+            install_all=False,
         )
-
-        try:
-            updater.refresh_package_index(
-                transport,
-                method,
-                privilege_password,
-            )
-
-            available_updates = updater.list_updates(
-                transport
-            )
-
-            locked_packages = (
-                get_locked_package_names(
-                    db,
-                    server.id,
-                )
-            )
-
-            requested_locked = [
-                package
-                for package in payload.packages
-                if package in locked_packages
-            ]
-
-            if requested_locked:
-                raise UpdaterError(
-                    "Locked package(s) cannot be installed: "
-                    + ", ".join(requested_locked)
-                )
-
-            validated_packages = (
-                updater.validate_requested_packages(
-                    payload.packages,
-                    available_updates,
-                )
-            )
-
-            updater.install_updates(
-                transport,
-                validated_packages,
-                method,
-                privilege_password,
-            )
-
-            remaining_updates = updater.list_updates(
-                transport
-            )
-
-            reboot_status = updater.get_reboot_status(
-                transport
-            )
-
-        finally:
-            transport.close()
-
-        server.reboot_required = (
-            reboot_status["reboot_required"]
-        )
-
-        db.commit()
-        db.refresh(server)
-
-        create_history_entry(
-            db=db,
-            server=server,
-            action=ACTION_INSTALL_SELECTED,
-            status=STATUS_SUCCESS,
-            package_count=len(validated_packages),
-            reboot_required=server.reboot_required,
-            message=(
-                f"Installed: {', '.join(validated_packages)}"
-            ),
-        )
-
-        send_notification_event(
-            db=db,
-            event_key=EVENT_INSTALL_SUCCESS,
-            title=f"Updates installed on {server.name}",
-            message=(
-                f"Server: {server.name}\n"
-                f"Host: {server.host}\n"
-                f"Installed packages: {len(validated_packages)}\n"
-                f"Packages: {', '.join(validated_packages)}"
-            ),
-        )
-
-        return {
-            "server_id": server.id,
-            "server": server.name,
-            "system_hostname": server.system_hostname,
-            "installed_packages": validated_packages,
-            "remaining_updates": len(remaining_updates),
-            "reboot_required": server.reboot_required,
-            "updates": remaining_updates,
-        }
 
     except (
-        AuthenticationError,
-        PrivilegeUnavailableError,
-        PrivilegeError,
-        DiscoveryError,
-        UpdaterError,
+        UpdateWorkerBusyError,
+        ServerOperationBusyError,
     ) as exc:
-        _raise_update_error(
-            db,
-            server,
-            ACTION_INSTALL_SELECTED,
-            exc,
-        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "status": "accepted",
+        "server_id": server.id,
+        "operation": "INSTALL_SELECTED",
+        "message": (
+            "Selected update installation started"
+        ),
+    }
 
 
-@router.post("/{server_id}/updates/install-all")
+@router.post(
+    "/{server_id}/updates/install-all",
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def install_all_updates(
     server_id: int,
     db: Session = Depends(get_db),
@@ -637,159 +560,28 @@ def install_all_updates(
     )
 
     try:
-        (
-            updater,
-            transport,
-            method,
-            privilege_password,
-        ) = _open_update_session(
-            server,
-            db,
+        start_update_worker(
+            server.id,
+            install_all=True,
         )
-
-        try:
-            updater.refresh_package_index(
-                transport,
-                method,
-                privilege_password,
-            )
-
-            available_updates = updater.list_updates(
-                transport
-            )
-
-            locked_packages = (
-                get_locked_package_names(
-                    db,
-                    server.id,
-                )
-            )
-
-            available_updates = (
-                filter_unlocked_updates(
-                    available_updates,
-                    locked_packages,
-                )
-            )
-
-            if not available_updates:
-                reboot_status = updater.get_reboot_status(
-                    transport
-                )
-
-                server.reboot_required = (
-                    reboot_status["reboot_required"]
-                )
-
-                db.commit()
-                db.refresh(server)
-
-                create_history_entry(
-                    db=db,
-                    server=server,
-                    action=ACTION_INSTALL_ALL,
-                    status=STATUS_SUCCESS,
-                    package_count=0,
-                    reboot_required=server.reboot_required,
-                    message="No updates available",
-                )
-
-                return {
-                    "server_id": server.id,
-                    "server": server.name,
-                    "system_hostname": server.system_hostname,
-                    "installed_packages": [],
-                    "installed_count": 0,
-                    "remaining_updates": 0,
-                    "reboot_required": server.reboot_required,
-                    "message": "No updates available",
-                }
-
-            package_names = [
-                update["name"]
-                for update in available_updates
-            ]
-
-            validated_packages = (
-                updater.validate_requested_packages(
-                    package_names,
-                    available_updates,
-                )
-            )
-
-            updater.install_updates(
-                transport,
-                validated_packages,
-                method,
-                privilege_password,
-            )
-
-            remaining_updates = updater.list_updates(
-                transport
-            )
-
-            reboot_status = updater.get_reboot_status(
-                transport
-            )
-
-        finally:
-            transport.close()
-
-        server.reboot_required = (
-            reboot_status["reboot_required"]
-        )
-
-        db.commit()
-        db.refresh(server)
-
-        create_history_entry(
-            db=db,
-            server=server,
-            action=ACTION_INSTALL_ALL,
-            status=STATUS_SUCCESS,
-            package_count=len(validated_packages),
-            reboot_required=server.reboot_required,
-            message=(
-                f"Installed {len(validated_packages)} update(s)"
-            ),
-        )
-
-        send_notification_event(
-            db=db,
-            event_key=EVENT_INSTALL_SUCCESS,
-            title=f"Updates installed on {server.name}",
-            message=(
-                f"Server: {server.name}\n"
-                f"Host: {server.host}\n"
-                f"Installed packages: {len(validated_packages)}\n"
-                f"Packages: {', '.join(validated_packages)}"
-            ),
-        )
-
-        return {
-            "server_id": server.id,
-            "server": server.name,
-            "system_hostname": server.system_hostname,
-            "installed_packages": validated_packages,
-            "installed_count": len(validated_packages),
-            "remaining_updates": len(remaining_updates),
-            "reboot_required": server.reboot_required,
-            "updates": remaining_updates,
-        }
 
     except (
-        AuthenticationError,
-        PrivilegeUnavailableError,
-        PrivilegeError,
-        DiscoveryError,
-        UpdaterError,
+        UpdateWorkerBusyError,
+        ServerOperationBusyError,
     ) as exc:
-        _raise_update_error(
-            db,
-            server,
-            ACTION_INSTALL_ALL,
-            exc,
-        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "status": "accepted",
+        "server_id": server.id,
+        "operation": "INSTALL_ALL",
+        "message": (
+            "Update installation started"
+        ),
+    }
 
 
 @router.get("/{server_id}/reboot-status")

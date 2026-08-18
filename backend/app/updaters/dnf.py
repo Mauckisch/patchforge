@@ -66,6 +66,7 @@ class DnfUpdater(BaseUpdater):
         packages: list[str],
         privilege_method: str,
         privilege_password: str | None,
+        progress_callback=None,
     ) -> None:
         try:
             dnf.install_updates(

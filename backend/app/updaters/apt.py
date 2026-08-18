@@ -96,6 +96,7 @@ class AptUpdater(BaseUpdater):
         packages: list[str],
         privilege_method: str,
         privilege_password: str | None,
+        progress_callback=None,
     ) -> None:
         try:
             apt.install_updates(
@@ -103,6 +104,7 @@ class AptUpdater(BaseUpdater):
                 packages=packages,
                 privilege_method=privilege_method,
                 privilege_password=privilege_password,
+                progress_callback=progress_callback,
             )
 
         except apt.AptError as exc:

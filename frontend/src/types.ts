@@ -21,6 +21,15 @@ export interface Server {
   connection_status: string;
   updates_available: number;
 
+  operation_status: string;
+  operation_type: string | null;
+  operation_progress: number;
+  operation_current: number;
+  operation_total: number;
+  operation_current_package: string | null;
+  operation_message: string | null;
+  operation_started_at: string | null;
+
   last_seen_at: string | null;
   updates_checked_at: string | null;
   last_check_at: string | null;

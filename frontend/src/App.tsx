@@ -394,6 +394,67 @@ function App() {
   }, []);
 
 
+  const hasRunningOperations = useMemo(
+    () =>
+      servers.some(
+        (server) =>
+          server.operation_status === "RUNNING"
+      ),
+    [servers]
+  );
+
+
+  useEffect(() => {
+    if (!hasRunningOperations) {
+      return;
+    }
+
+    let cancelled = false;
+    let operationTimer: number | undefined;
+
+    async function pollOperations() {
+      try {
+        const serverData =
+          await getServers();
+
+        if (!cancelled) {
+          setServers(serverData);
+        }
+
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to refresh operation status"
+          );
+        }
+      }
+
+      if (!cancelled) {
+        operationTimer = window.setTimeout(
+          () => {
+            void pollOperations();
+          },
+          2000
+        );
+      }
+    }
+
+    void pollOperations();
+
+    return () => {
+      cancelled = true;
+
+      if (operationTimer !== undefined) {
+        window.clearTimeout(
+          operationTimer
+        );
+      }
+    };
+  }, [hasRunningOperations]);
+
+
   const rebootCount = useMemo(
     () =>
       servers.filter(
@@ -431,6 +492,8 @@ function App() {
       ),
     [servers]
   );
+
+
 
 
   async function confirmDeleteServer() {
@@ -3840,18 +3903,16 @@ function UpdateModal({
               setBusy(true);
 
               try {
-                await installSelectedUpdates(
-                  server.id,
-                  selected
-                );
+                  await installSelectedUpdates(
+                    server.id,
+                    selected
+                  );
 
-                await refresh(
-                  "Refreshing package state…"
-                );
+                  setOperationStatus(
+                    "Selected update installation started in background."
+                  );
 
-                setOperationStatus(
-                  "Selected updates installed successfully."
-                );
+                  await onChanged();
 
               } catch (err) {
                 setOperationStatus(
@@ -3892,17 +3953,15 @@ function UpdateModal({
               setBusy(true);
 
               try {
-                await installAllUpdates(
-                  server.id
-                );
+                  await installAllUpdates(
+                    server.id
+                  );
 
-                await refresh(
-                  "Refreshing package state…"
-                );
+                  setOperationStatus(
+                    "Update installation started in background."
+                  );
 
-                setOperationStatus(
-                  "All available updates installed successfully."
-                );
+                  await onChanged();
 
               } catch (err) {
                 setOperationStatus(
@@ -4533,6 +4592,45 @@ function ServerPanel({
                                 : "updates"}
                             </span>
                           </div>
+
+                            {server.operation_status === "RUNNING" && (
+                              <div className="server-operation">
+                                <div className="server-operation-title">
+                                  <span>
+                                    Installing updates
+                                  </span>
+
+                                  {server.operation_progress > 0 && (
+                                    <strong>
+                                      {server.operation_progress}%
+                                    </strong>
+                                  )}
+                                </div>
+
+                                <div className="server-operation-bar">
+                                  <span
+                                    style={{
+                                      width:
+                                        `${server.operation_progress}%`
+                                    }}
+                                  />
+                                </div>
+
+                                <div className="server-operation-detail">
+                                  {server.operation_total > 0 &&
+                                  server.operation_current > 0
+                                    ? `Installing ${server.operation_current} / ${server.operation_total}`
+                                    : server.operation_message
+                                      ?? "Preparing update installation…"}
+                                </div>
+
+                                {server.operation_current_package && (
+                                  <div className="server-operation-package">
+                                    {server.operation_current_package}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                         </td>
 
                         <td>

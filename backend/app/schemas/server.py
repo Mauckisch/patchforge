@@ -85,6 +85,16 @@ class ServerResponse(BaseModel):
 
     connection_status: str
     updates_available: int
+
+    operation_status: str
+    operation_type: str | None
+    operation_progress: int
+    operation_current: int
+    operation_total: int
+    operation_current_package: str | None
+    operation_message: str | None
+    operation_started_at: datetime | None
+
     last_seen_at: datetime | None
     updates_checked_at: datetime | None
     last_check_at: datetime | None

@@ -108,8 +108,18 @@ export function checkUpdates(
 export function installSelectedUpdates(
   serverId: number,
   packages: string[]
-): Promise<InstallResult> {
-  return request<InstallResult>(
+): Promise<{
+  status: string;
+  server_id: number;
+  operation: string;
+  message: string;
+}> {
+  return request<{
+    status: string;
+    server_id: number;
+    operation: string;
+    message: string;
+  }>(
     `/api/servers/${serverId}/updates/install`,
     {
       method: "POST",
@@ -126,8 +136,18 @@ export function installSelectedUpdates(
 
 export function installAllUpdates(
   serverId: number
-): Promise<InstallResult> {
-  return request<InstallResult>(
+): Promise<{
+  status: string;
+  server_id: number;
+  operation: string;
+  message: string;
+}> {
+  return request<{
+    status: string;
+    server_id: number;
+    operation: string;
+    message: string;
+  }>(
     `/api/servers/${serverId}/updates/install-all`,
     {
       method: "POST"

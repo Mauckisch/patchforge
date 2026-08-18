@@ -3231,3 +3231,95 @@ td {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ============================================================
+   Server operation progress
+   ============================================================ */
+
+.server-operation {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+  margin-top: 7px;
+}
+
+.server-operation-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #b9c9c0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.server-operation-title strong {
+  color: #55e195;
+  font-size: 11px;
+}
+
+.server-operation-bar {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #202a24;
+}
+
+.server-operation-bar > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #2cb969;
+  transition: width 0.25s ease;
+}
+
+.server-operation-detail {
+  color: #83958b;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.server-operation-package {
+  overflow: hidden;
+  color: #6f8177;
+  font-family: monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+   Server operation progress - table layout fix
+   ============================================================ */
+
+.server-table td:has(.server-operation) {
+  min-width: 190px;
+  vertical-align: middle;
+}
+
+.server-operation {
+  width: 100%;
+  min-width: 0;
+  max-width: 190px;
+  box-sizing: border-box;
+}
+
+.server-operation-title {
+  min-width: 0;
+}
+
+.server-operation-detail {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-operation-package {
+  max-width: 100%;
+}

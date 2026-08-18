@@ -102,6 +102,50 @@ class Server(Base):
         default=0,
     )
 
+    operation_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="IDLE",
+    )
+
+    operation_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    operation_progress: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    operation_current: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    operation_total: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    operation_current_package: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    operation_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    operation_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,
