@@ -5,6 +5,13 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.6.7]
+
+### Fixed
+
+- Fixed DNF5 update detection on Fedora systems by explicitly separating `repoquery` results into individual package records.
+- Preserved compatibility with existing DNF-based Oracle Linux systems.
+
 ## [1.6.6]
 
 ### Added
