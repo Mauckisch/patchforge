@@ -134,7 +134,7 @@ def _get_installed_versions(
             "dnf -q repoquery "
             "--installed "
             "--qf "
-            "'%{name}|%{arch}|%{evr}'"
+            "'%{name}|%{arch}|%{evr}\\n'"
         ),
         timeout=120,
     )
@@ -185,7 +185,7 @@ def list_updates(
             "dnf -q repoquery "
             "--upgrades "
             "--qf "
-            "'%{name}|%{arch}|%{evr}|%{repoid}'"
+            "'%{name}|%{arch}|%{evr}|%{repoid}\\n'"
         ),
         timeout=120,
     )
