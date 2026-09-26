@@ -5,6 +5,21 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.7.0]
+
+### Added
+
+- Added initial support for pacman-based Arch Linux systems.
+- Added support for Omarchy systems.
+- Added update detection using `checkupdates`.
+- Added full system upgrades using `pacman -Syu`.
+- Added orphan package detection and cleanup using pacman.
+- Added reboot detection for pacman systems, including custom kernel packages such as `linux-omarchy`.
+
+### Safety
+
+- Selective package updates are rejected on pacman-based systems to avoid unsupported Arch Linux partial upgrades.
+
 ## [1.6.7]
 
 ### Fixed

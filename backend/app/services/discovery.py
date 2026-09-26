@@ -62,6 +62,7 @@ DISTRIBUTION_PACKAGE_MANAGERS = {
     "sles": "zypper",
 
     "arch": "pacman",
+    "omarchy": "pacman",
 }
 
 
