@@ -5,6 +5,13 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.7.1]
+
+### Fixed
+
+- Fixed the displayed running kernel version not being refreshed during update and reboot status checks.
+- Kernel information is now kept current for APT, DNF, and pacman-based systems without requiring server rediscovery.
+
 ## [1.7.0]
 
 ### Added

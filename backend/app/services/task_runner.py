@@ -226,6 +226,8 @@ def _run_for_server(
                 reboot_status["reboot_required"]
             )
 
+            server.kernel_version = reboot_status["running_kernel"]
+
             create_history_entry(
                 db=db,
                 server=server,
@@ -349,6 +351,8 @@ def _run_for_server(
                 reboot_status["reboot_required"]
             )
 
+            server.kernel_version = reboot_status["running_kernel"]
+
             create_history_entry(
                 db=db,
                 server=server,
@@ -436,6 +440,8 @@ def _run_for_server(
                 reboot_status["reboot_required"]
             )
 
+            server.kernel_version = reboot_status["running_kernel"]
+
             create_history_entry(
                 db=db,
                 server=server,
@@ -468,6 +474,8 @@ def _run_for_server(
             server.reboot_required = (
                 reboot_status["reboot_required"]
             )
+
+            server.kernel_version = reboot_status["running_kernel"]
 
             create_history_entry(
                 db=db,

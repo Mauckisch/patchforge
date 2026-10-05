@@ -351,6 +351,8 @@ def _install_worker(
             reboot_status["reboot_required"]
         )
 
+        server.kernel_version = reboot_status["running_kernel"]
+
         server.updates_available = len(
             remaining_updates
         )

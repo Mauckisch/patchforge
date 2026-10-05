@@ -405,6 +405,8 @@ def check_updates(
             reboot_status["reboot_required"]
         )
 
+        server.kernel_version = reboot_status["running_kernel"]
+
         server.cleanup_available = (
             cleanup_available
         )
@@ -625,6 +627,8 @@ def get_reboot_status(
             reboot_status["reboot_required"]
         )
 
+        server.kernel_version = reboot_status["running_kernel"]
+
         db.commit()
         db.refresh(server)
 
@@ -694,6 +698,8 @@ def cleanup_server(
         server.reboot_required = (
             reboot_status["reboot_required"]
         )
+
+        server.kernel_version = reboot_status["running_kernel"]
 
         server.cleanup_available = (
             cleanup_available
@@ -876,6 +882,8 @@ def install_selected_held_updates(
                 "reboot_required"
             ]
         )
+
+        server.kernel_version = reboot_status["running_kernel"]
 
         replace_update_snapshot(
             db,
