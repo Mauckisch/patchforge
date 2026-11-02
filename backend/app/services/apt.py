@@ -1,4 +1,5 @@
 import re
+import shlex
 import time
 
 import paramiko
@@ -210,6 +211,14 @@ def _privileged_command(
 
         return (
             f"sudo -S -p '' env LC_ALL=C {command}",
+            f"{privilege_password}\n",
+        )
+
+    if privilege_method == "su":
+        if privilege_password is None:
+            raise AptError("su requires a privilege password")
+        return (
+            f"su -c {shlex.quote(f'env LC_ALL=C {command}')}",
             f"{privilege_password}\n",
         )
 

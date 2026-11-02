@@ -5,6 +5,14 @@ file.
 
 PatchForge follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.7.5]
+
+### Fixed
+
+- Added support for `su` privilege escalation in APT, DNF, and pacman package-management operations.
+- Fixed scheduled APT update checks failing with `Unsupported privilege method for APT: su` on hosts without sudo.
+- Preserved existing root and sudo privilege handling.
+
 ## [1.7.1]
 
 ### Fixed

@@ -91,6 +91,14 @@ def _privileged_command(
             f"{privilege_password}\n",
         )
 
+    if privilege_method == "su":
+        if privilege_password is None:
+            raise PacmanError("su requires a privilege password")
+        return (
+            f"su -c {shlex.quote(f'env LC_ALL=C {command}')}",
+            f"{privilege_password}\n",
+        )
+
     raise PacmanError(
         "Unsupported privilege method "
         f"for pacman: {privilege_method}"
